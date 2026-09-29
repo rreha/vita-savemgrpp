@@ -1,10 +1,10 @@
-#include <psp2/shellutil.h>
-#include <psp2/apputil.h>
-#include <psp2/system_param.h>
-#include <psp2/touch.h>
-
 #include "common.h"
 #include "input.h"
+
+int SCE_CTRL_ENTER = 0;
+int SCE_CTRL_CANCEL = 0;
+char ICON_ENTER[2] = {0};
+char ICON_CANCEL[2] = {0};
 
 void init_input() {
     int enter_button;

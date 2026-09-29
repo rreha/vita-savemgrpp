@@ -1,8 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <malloc.h>
-
 #include "file.h"
 
 const char *const blacklists[] = {
@@ -49,7 +44,7 @@ int create_dir(const char *path, int mode) {
     return 1;
 }
 
-int remove_dir_recursive(const char *path, void (*callback)(int*, int), int *curr, int max) {
+int remove_dir_recursive(const char *path, void (*callback)(int*, int, const char*), int *curr, int max) {
     SceUID dfd = sceIoDopen(path);
 
     if (dfd < 0) {
@@ -83,7 +78,7 @@ int remove_dir_recursive(const char *path, void (*callback)(int*, int), int *cur
         } else {
             int ret = sceIoRemove(new_path);
             if (callback)
-                callback(curr, max);
+                callback(curr, max, dir.d_name);
 
             if (ret < 0) {
                 sceIoDclose(dfd);
@@ -164,7 +159,7 @@ int copy_file(const char *src, const char *dest, int check_blacklist) {
     return 1;
 }
 
-int copy_dir_recursive(const char *src, const char *dest, void (*callback)(int*, int), int *curr, int max, int check_blacklist) {
+int copy_dir_recursive(const char *src, const char *dest, void (*callback)(int*, int, const char*), int *curr, int max, int check_blacklist) {    
     if (strcasecmp(src, dest) == 0) return 1;
 
     int i = 0;
@@ -206,7 +201,7 @@ int copy_dir_recursive(const char *src, const char *dest, void (*callback)(int*,
         } else {
             ret = copy_file(new_src, new_dst, check_blacklist);
             if (callback)
-                callback(curr, max);
+                callback(curr, max, dir.d_name);
         }
 
         if (ret == 0) { // copy_file failed

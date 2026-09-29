@@ -20,25 +20,31 @@ See [CHANGELOG.md](CHANGELOG.md).
 - Customize UI (choose between Dark/Light Mode, and pick from different accent colors)
 
 ## Controls
-D-Pad / Left Analog / Touch : Select<br>
-L / R : Switch Tabs (GAMES / SAVES)<br>
-╳ / ◯ / Touch : Confirmation<br>
-△ : Toggle Settings
+Left Analog / D-Pad / Touch : Select<br>
+L / R : Switch Tabs (SAVES / BACKUPS)<br>
+SELECT : Toggle FTP<br>
+╳ / ◯ / Touch : Confirm<br>
+□ : Sort<br>
+△ : Settings
 
 ## Screenshots
 <p align="center">
   <table>
     <tr>
       <td><img src="res/screenshots/mainscreen.png" width="384"/></td>
+      <td><img src="res/screenshots/sort.png" width="384"/></td>
+    </tr>
+    <tr>
       <td><img src="res/screenshots/backup.png" width="384"/></td>
-    </tr>
-    <tr>
       <td><img src="res/screenshots/progress.png" width="384"/></td>
-      <td><img src="res/screenshots/settings.png" width="384"/></td>
     </tr>
     <tr>
+      <td><img src="res/screenshots/settings.png" width="384"/></td>
       <td><img src="res/screenshots/darkmode.png" width="384"/></td>
+    </tr>
+    <tr>
       <td><img src="res/screenshots/accent.png" width="384"/></td>
+      <td><img src="res/screenshots/ftp.png" width="384"/></td>
     </tr>
   </table>
 </p>
@@ -58,4 +64,5 @@ This project is licensed under [GPLv3](LICENSE).
 - [VitaShell by TheFloW](https://github.com/TheOfficialFloW/VitaShell)<br>
 - [rinCheat by Rinnegatamante](https://github.com/Rinnegatamante/rinCheat)<br>
 - [Vita Save Manager by d3m3vilurr](https://github.com/d3m3vilurr/vita-savemgr)<br>
-- [Vita Save Manager Plus by kylon](https://bitbucket.org/kylon/vita-savemgr/)
+- [Vita Save Manager Plus by kylon](https://bitbucket.org/kylon/vita-savemgr/)<br>
+- [libftpvita by xerpi](https://github.com/xerpi/libftpvita)

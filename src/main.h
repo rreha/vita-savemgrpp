@@ -5,6 +5,11 @@
 #include <psp2/system_param.h>
 #include <psp2/rtc.h>
 #include <psp2/shellutil.h>
+#include <psp2/net/net.h>
+#include <psp2/net/netctl.h>
+#include <psp2/sysmodule.h>
+#include <ftpvita.h>
+#include <strings.h>
 
 #include "utils.h"
 #include "font.h"
@@ -15,11 +20,12 @@
 #define IS_OVERFLOW() ((select_row*ICONS_COL)+select_col >= selectable_count(*curr, ICONS_ROW, ICONS_COL))
 
 vita2d_pgf* font;
+vita2d_pvf* symbol_font;
 
 int SCE_CTRL_ENTER;
 int SCE_CTRL_CANCEL;
-char ICON_ENTER[4];
-char ICON_CANCEL[4];
+extern char ICON_ENTER[2];
+extern char ICON_CANCEL[2];
 
 char confirm_msg[64];
 int confirm_msg_width;
@@ -28,7 +34,7 @@ int close_msg_width;
 char yesno_msg[64];
 int yesno_msg_width;
 
-char **devices;
+char devices[5][6];
 char cur_device[5];
 
 int select_row = 0;
@@ -47,6 +53,7 @@ typedef enum {
     UNKNOWN = 0,
     MAIN_SCREEN = 1,
     MENU_OPEN,
+    SORT_MENU_OPEN,
     PRINT_APPINFO,
     BACKUP_MODE,
     BACKUP_CONFIRM,

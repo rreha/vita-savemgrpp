@@ -1,11 +1,18 @@
+## 5.0.0
+- Add FTP support
+- Add sorting
+- Improve UI
+- Improve performance
+- Fix bugs, crashes and bad code
+
 ## 4.2.0
-- Added fixes for compilation on modern GCC & vitasdk
-- Integrated dependencies (VitaShell's user and kernel stubs) to the repo
-- Added customizable accent color
-- Added dark mode
-- Added touch controls back (partially)
-- Improved UI
-- Improved performance
+- Add fixes for compilation on modern GCC & vitasdk
+- Integrate dependencies (VitaShell's user and kernel stubs) to the repo
+- Add customizable accent color
+- Add dark mode
+- Add touch controls back (partially)
+- Improve UI
+- Improve performance
 
 ## 4.1.0 (Vita Save Manager Plus)
 - Support all vita partitions

@@ -30,7 +30,7 @@ typedef struct applist {
     appinfo *choose;
 } applist;
 
-char savemgr_fpath[26];
+extern char savemgr_fpath[128];
 
 void setRegionLabel(char regionID, appinfo *info);
 int get_applist(applist *list);

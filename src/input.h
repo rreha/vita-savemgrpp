@@ -1,6 +1,10 @@
 #pragma once
 
+#include <psp2/apputil.h>
 #include <psp2/ctrl.h>
+#include <psp2/shellutil.h>
+#include <psp2/system_param.h>
+#include <psp2/touch.h>
 
 void init_input();
 void lock_psbutton();

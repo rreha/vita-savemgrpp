@@ -3,6 +3,8 @@
 #include "sqlite3.h"
 #include "utils.h"
 
+char savemgr_fpath[128] = {0};
+
 void setRegionLabel(char regionID, appinfo *info) {
     switch (regionID) {
         case 'B': case 'F':
@@ -96,7 +98,7 @@ static int get_applist_callback(void *data, int argc, char **argv, char **cols) 
     snprintf(info->dev, sizeof(info->dev), "%s", argv[4]);
     snprintf(info->iconpath, sizeof(info->iconpath), "%s", argv[5]);
 
-    for (int i=0; i<256; ++i) {
+    for (int i=0; info->title[i] != '\0' && i < 256; ++i) {
         if (info->title[i] == '\n')
             info->title[i] = ' ';
     }
@@ -295,22 +297,27 @@ void circle_mask(vita2d_texture *tex) {
     float cx = w / 2.0f;
     float cy = h / 2.0f;
     float radius = (w < h ? w : h) / 2.0f;
+    float feather = 1.5f; 
     float rad_sq = radius * radius;
-    float rad_inner_sq = (radius - 1.0f) * (radius - 1.0f);
+    float inner_rad = radius - feather;
+    float inner_rad_sq = inner_rad * inner_rad;
 
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
-            float dx = x - cx;
-            float dy = y - cy;
-            float dist_sq = (dx*dx) + (dy*dy);
+            float dx = (x + 0.5f) - cx;
+            float dy = (y + 0.5f) - cy;
+            float dist_sq = (dx * dx) + (dy * dy);
             
             uint32_t *pixel = &pixels[(y * stride / 4) + x];
             
-            if (dist_sq > rad_sq) {
+            if (dist_sq >= rad_sq) {
                 *pixel &= 0x00FFFFFF; 
-            } else if (dist_sq > rad_inner_sq) {
+            } 
+
+            else if (dist_sq > inner_rad_sq) {
                 float distance = sqrtf(dist_sq);
-                float alpha_factor = radius - distance;
+                float alpha_factor = (radius - distance) / feather;
+                alpha_factor = alpha_factor * alpha_factor * (3.0f - 2.0f * alpha_factor);
                 uint8_t old_alpha = (*pixel >> 24) & 0xFF;
                 uint8_t new_alpha = (uint8_t)(old_alpha * alpha_factor);
                 *pixel = (*pixel & 0x00FFFFFF) | (new_alpha << 24);

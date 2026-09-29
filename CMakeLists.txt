@@ -18,7 +18,7 @@ include("${VITASDK}/share/vita.cmake" REQUIRED)
 
 set(TITLE_ID "SAVEMGRPP")
 set(APP_NAME "Save Manager++")
-set(VERSION "04.20")
+set(VERSION "05.00")
 
 add_definitions(-DSQLITE_OS_OTHER=1 -DSQLITE_TEMP_STORE=3 -DSQLITE_THREADSAFE=0)
 
@@ -61,10 +61,18 @@ ENDFUNCTION()
 set(res_files res/noicon.png)
 add_resources(svmgr_res ${res_files})
 
+add_custom_target(build_ftpvita ALL
+    COMMAND make
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/libs/libftpvita"
+    BYPRODUCTS "${LOCAL_FTPVITA_DIR}/libftpvita.a"
+    COMMENT "Building libftpvita..."
+)
+
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/sqlite3/source
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/VitaShell/user
     ${CMAKE_CURRENT_SOURCE_DIR}/libs/VitaShell/kernel
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/libftpvita
 )
 
 add_executable(${PROJECT_NAME}
@@ -80,7 +88,7 @@ add_executable(${PROJECT_NAME}
     src/ime_dialog.c
 )
 
-add_dependencies(${PROJECT_NAME} vitashell_user_stubs)
+add_dependencies(${PROJECT_NAME} vitashell_user_stubs build_ftpvita)
 
 target_link_libraries(${PROJECT_NAME}
 	${CMAKE_CURRENT_SOURCE_DIR}/libs/sqlite3/sqlite3.c.obj
@@ -88,6 +96,9 @@ target_link_libraries(${PROJECT_NAME}
     png
     z
     m
+    ${CMAKE_CURRENT_SOURCE_DIR}/libs/libftpvita/libftpvita.a
+    SceNet_stub
+    SceNetCtl_stub
     SceIofilemgr_stub
     SceKernelThreadMgr_stub
     SceCommonDialog_stub
@@ -99,6 +110,7 @@ target_link_libraries(${PROJECT_NAME}
     SceCtrl_stub
     SceTouch_stub
     ScePgf_stub
+    ScePvf_stub
     SceShellSvc_stub
     SceRegistryMgr_stub
     taihen_stub

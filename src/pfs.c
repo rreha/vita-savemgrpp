@@ -68,7 +68,7 @@ int known_pfs_ids[] = {
 // Thanks Princess-of-Sleeping
 int load_modules(char **error) {
     SceUID search_modid, kern_modid, user_modid;
-    size_t len = sizeof(char) * 60;
+    size_t len = sizeof(char) * 128;
     char module_path[60] = {0};
     int search_unk[2];
     int res = 0;
@@ -77,15 +77,12 @@ int load_modules(char **error) {
     search_modid = _vshKernelSearchModuleByName("VitaShellKernel2", search_unk);
     if(search_modid < 0) {
         snprintf(module_path, len, "ux0:VitaShell/module/kernel.skprx");
-
-        if (!(module_path)) {
-            snprintf(module_path, len, "ux0"SAVEMGR_FOLDER"/kernel.skprx");
-
-            if (!(module_path)) {
+        if (!path_exists(module_path)) {
+            snprintf(module_path, len, "ux0:"SAVEMGR_FOLDER"/kernel.skprx");
+            
+            if (!path_exists(module_path)) {
                 *error = malloc(len);
-                if (*error)
-                    snprintf(*error, len, "Kernel module not found!");
-
+                if (*error) snprintf(*error, len, "Kernel module not found!");
                 return 0;
             }
         }
@@ -110,14 +107,12 @@ int load_modules(char **error) {
     // Load user module
     snprintf(module_path, len, "ux0:VitaShell/module/user.suprx");
 
-    if (!(module_path)) {
-        snprintf(module_path, len, "ux0"SAVEMGR_FOLDER"/user.suprx");
+    if (!path_exists(module_path)) {
+        snprintf(module_path, len, "ux0:"SAVEMGR_FOLDER"/user.suprx");
 
-        if (!(module_path)) {
+        if (!path_exists(module_path)) {
             *error = malloc(len);
-            if (*error)
-                snprintf(*error, len, "User module not found!");
-
+            if (*error) snprintf(*error, len, "User module not found!");
             return 0;
         }
     }

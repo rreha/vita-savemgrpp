@@ -29,3 +29,7 @@ vita2d_pgf* load_system_fonts() {
 
     return vita2d_load_system_pgf(3, configs);
 }
+
+vita2d_pvf* load_symbol_font() {
+    return vita2d_load_custom_pvf("sa0:data/font/pvf/psexchar.pvf");
+}

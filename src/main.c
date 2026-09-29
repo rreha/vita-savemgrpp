@@ -3,10 +3,15 @@
 static char slot_cache[10][64];
 static char savedir_cache[128];
 static appinfo *cached_info_ptr = NULL;
+static int is_ftp_active = 0;
+static int net_initialized = 0;
+static char ftp_ip_str[32] = "";
 int force_cache_refresh = 1;
 int current_accent_idx = 0;
 unsigned int current_accent_color = DEFAULT;
 int is_dark_mode = 0;
+int current_sort_mode = 0;
+int select_sort_menu = 0;
 
 static char *save_dir_path(const appinfo *info) {
     size_t len = sizeof(char) * 40;
@@ -73,6 +78,44 @@ static char *save_dir_path_enc(const appinfo *info) {
     return NULL;
 }
 
+static int compare_appinfo(const void *a, const void *b) {
+    appinfo *appA = *(appinfo **)a;
+    appinfo *appB = *(appinfo **)b;
+    
+    if (current_sort_mode == 0) {
+        return strcasecmp(appA->title, appB->title);       // A-Z
+    } else if (current_sort_mode == 1) {
+        return strcasecmp(appB->title, appA->title);       // Z-A (Reversed)
+    } else if (current_sort_mode == 2) {
+        return strcasecmp(appA->title_id, appB->title_id); // Title ID (Ascending)
+    } else {
+        return strcasecmp(appB->title_id, appA->title_id); // Title ID (Descending)
+    }
+}
+
+static void sort_applist(applist *list) {
+    if (!list || list->count < 2) return;
+    appinfo **arr = malloc(list->count * sizeof(appinfo *));
+    if (!arr) return;
+
+    appinfo *curr = list->items;
+    for (int i = 0; i < list->count; i++) {
+        arr[i] = curr;
+        curr = curr->next;
+    }
+
+    qsort(arr, list->count, sizeof(appinfo *), compare_appinfo);
+
+    list->items = arr[0];
+    for (int i = 0; i < list->count; i++) {
+        arr[i]->prev = (i > 0) ? arr[i - 1] : NULL;
+        arr[i]->next = (i < list->count - 1) ? arr[i + 1] : NULL;
+    }
+    list->curr = list->items;
+
+    free(arr);
+}
+
 static int is_save_decrypted(const appinfo *info, int slot) {
     char path[70] = {0};
     snprintf(path, sizeof(path), "%s/%s/SLOT%d/sce_pfs", savemgr_fpath, info->title_id, slot);
@@ -88,6 +131,7 @@ static void save_config() {
         sceIoWrite(fd, &current_accent_idx, sizeof(int));
         sceIoWrite(fd, &select_device, sizeof(int));
         sceIoWrite(fd, &is_dark_mode, sizeof(int));
+        sceIoWrite(fd, &current_sort_mode, sizeof(int));
         sceIoClose(fd);
     }
 }
@@ -97,11 +141,17 @@ static void load_config() {
     snprintf(path, sizeof(path), "%s%s/settings.cfg", devices[0], SAVEMGR_FOLDER);
     SceUID fd = sceIoOpen(path, SCE_O_RDONLY, 0);
     if (fd >= 0) {
+        int saved_sort = 0;
         int saved_accent = 0;
         int saved_device = 0;
         sceIoRead(fd, &saved_accent, sizeof(int));
         sceIoRead(fd, &saved_device, sizeof(int));
         sceIoRead(fd, &is_dark_mode, sizeof(int));
+        
+        if (sceIoRead(fd, &saved_sort, sizeof(int)) == sizeof(int)) {
+            if (saved_sort >= 0 && saved_sort <= 3) current_sort_mode = saved_sort; 
+        }
+
         sceIoClose(fd);
 
         if (saved_accent >= 0 && saved_accent < num_accent_colors) {
@@ -117,9 +167,41 @@ static void load_config() {
     }
 }
 
+static void toggle_ftp() {
+    if (is_ftp_active) {
+        ftpvita_fini();
+        is_ftp_active = 0;
+        return;
+    }
+
+    if (!net_initialized) {
+        sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+        net_initialized = 1;
+    }
+
+    char vita_ip[16];
+    unsigned short int vita_port;
+
+    if (ftpvita_init(vita_ip, &vita_port) >= 0) {
+        ftpvita_add_device("ux0:");
+        ftpvita_add_device("ur0:");
+        ftpvita_add_device("uma0:");
+        ftpvita_add_device("imc0:");
+        ftpvita_add_device("xmc0:");
+        ftpvita_add_device("grw0:");
+
+        snprintf(ftp_ip_str, sizeof(ftp_ip_str), "ftp://%s:%i", vita_ip, vita_port);
+        is_ftp_active = 1;
+    } 
+    
+    else {
+        alert("Failed to start FTP.\nMake sure that you're connected to a network.", 1.0);
+    }
+}
+
 static void draw_tabs() {
-    int text_center = vita2d_pgf_text_width(font, 1.1, "GAMES") / 2;
-    int text_height = vita2d_pgf_text_height(font, 1.1, "GAMES");
+    int text_center = vita2d_pgf_text_width(font, 1.1, "SAVES") / 2;
+    int text_height = vita2d_pgf_text_height(font, 1.1, "SAVES");
     int screen_center = SCREEN_HALF_WIDTH;
     int screen_half_center = screen_center/2;
 
@@ -129,13 +211,13 @@ static void draw_tabs() {
                             8 + text_height, (!savelist_tab ? WHITE : TRANSPARENT), 1.1, "GAMES");
 
     vita2d_pgf_draw_text(font, (screen_center + screen_half_center) - text_center,
-                            8 + text_height, (savelist_tab ? WHITE : TRANSPARENT), 1.1, "SAVES");
+                            8 + text_height, (savelist_tab ? WHITE : TRANSPARENT), 1.1, "BACKUPS");
 
     int indicator_y = HEADER_HEIGHT - 4;
     if (!savelist_tab) {
-        vita2d_draw_rectangle(0, indicator_y, screen_center, 4, WHITE);
+        vita2d_draw_rectangle(0, indicator_y, screen_center, 4, THEME_PANEL);
     } else {
-        vita2d_draw_rectangle(screen_center, indicator_y, screen_center, 4, WHITE);
+        vita2d_draw_rectangle(screen_center, indicator_y, screen_center, 4, THEME_PANEL);
     }
 }
 
@@ -279,11 +361,13 @@ static void refresh_info_cache(appinfo *info) {
             sceRtcSetTick(&time, &tick_local);
 
             int isDec = is_save_decrypted(info, i);
-            snprintf(slot_cache[i], 64, "%04d-%02d-%02d %02d:%02d:%02d [%s]",
-                     time.year, time.month, time.day, time.hour, time.minute, time.second,
+            snprintf(slot_cache[i], 64, "%02d-%02d-%04d %02d:%02d:%02d [%s]",
+                     time.month, time.day, time.year, time.hour, time.minute, time.second,
                      (isDec == -1 ? "UNK":(isDec == 0 ? "ENC":"DEC")));
-        } else {
-            snprintf(slot_cache[i], 64, "empty");
+        } 
+        
+        else {
+            snprintf(slot_cache[i], 64, "Empty");
         }
         if (fn) free(fn);
     }
@@ -405,7 +489,7 @@ static void draw_appinfo(ScreenState state, appinfo *info) {
 
     appInfoDescPad += 45;
 
-    snprintf(tmp, tmpLen, "Save dir: %s", savedir_cache);
+    snprintf(tmp, tmpLen, "Save Dir: %s", savedir_cache);
     vita2d_pgf_draw_text(font,
                          APPINFO_DESC_LEFT + APPINFO_DESC_PADDING,
                          APPINFO_DESC_TOP + APPINFO_DESC_PADDING + appInfoDescPad,
@@ -433,7 +517,7 @@ static char *error_message(ProcessError error) {
         case NO_ERROR:
             return "NO ERROR";
         case ERROR_NO_SAVE_DIR:
-            return "Could not find save directory.\n\nPlease start the game at least once";
+            return "Could not find save directory.\nPlease start the game at least once";
         case ERROR_NO_SLOT_DIR:
             return "Could not find backup slot";
         case ERROR_MEMORY_ALLOC:
@@ -499,56 +583,48 @@ static ScreenState on_mainscreen_event(int steps, int *step, appinfo **curr, app
 
     if (btn & SCE_CTRL_UP) {
         if (select_row == 0) {
-            if (*step == 0)
-                return UNKNOWN;
-
+            if (*step == 0) return UNKNOWN;
             --(*step);
-
             for (int i=0; i<ICONS_COL; ++i, *curr=(*curr)->prev)
                 unload_icon(*curr);
-
         } else {
             --select_row;
         }
 
         return MAIN_SCREEN;
-
-    } else if (btn & SCE_CTRL_DOWN) {
+    } 
+    
+    else if (btn & SCE_CTRL_DOWN) {
         if (select_row+1 == ICONS_ROW) {
-            if (*step == steps)
-                return UNKNOWN;
-
+            if (*step == steps) return UNKNOWN;
             ++(*step);
-
             for (int i=0; i<ICONS_COL; ++i, *curr=(*curr)->next)
                 unload_icon(*curr);
-
         } else {
             ++select_row;
         }
 
-        if (IS_OVERFLOW())
-            --select_row;
+        if (IS_OVERFLOW()) --select_row;
 
         return MAIN_SCREEN;
-
-    } else if (btn & SCE_CTRL_LEFT) {
+    } 
+    
+    else if (btn & SCE_CTRL_LEFT) {
         select_col = select_col-1 < 0 ? 0:select_col-1;
 
         return MAIN_SCREEN;
-
-    } else if (btn & SCE_CTRL_RIGHT) {
+    } 
+    
+    else if (btn & SCE_CTRL_RIGHT) {
         select_col = select_col+1 == ICONS_COL ? select_col:select_col+1;
-
-        if (IS_OVERFLOW())
-            --select_col;
+        if (IS_OVERFLOW()) --select_col;
 
         return MAIN_SCREEN;
-
-    } else if ((btn & SCE_CTRL_LTRIGGER) || (btn & SCE_CTRL_RTRIGGER)) {
+    } 
+    
+    else if ((btn & SCE_CTRL_LTRIGGER) || (btn & SCE_CTRL_RTRIGGER)) {
         if ((!savelist_tab && (btn & SCE_CTRL_LTRIGGER)) ||
-                (savelist_tab && (btn & SCE_CTRL_RTRIGGER)))
-            return MAIN_SCREEN;
+        (savelist_tab && (btn & SCE_CTRL_RTRIGGER))) return MAIN_SCREEN;
 
         old_savelist_tab = savelist_tab;
         savelist_tab = !savelist_tab;
@@ -556,10 +632,10 @@ static ScreenState on_mainscreen_event(int steps, int *step, appinfo **curr, app
         refreshUI = 1;
 
         return MAIN_SCREEN;
+    } 
 
-    } else if (!(btn & SCE_CTRL_HOLD) && (btn & SCE_CTRL_ENTER)) {
-        if (!itemsC)
-            return MAIN_SCREEN;
+    else if (!(btn & SCE_CTRL_HOLD) && (btn & SCE_CTRL_ENTER)) {
+        if (!itemsC) return MAIN_SCREEN;
 
         int len = (select_row * ICONS_COL) + select_col;
 
@@ -570,9 +646,20 @@ static ScreenState on_mainscreen_event(int steps, int *step, appinfo **curr, app
         select_appinfo_button = 0;
 
         return PRINT_APPINFO;
-
-    } else if (!(btn & SCE_CTRL_HOLD) && (btn & SCE_CTRL_TRIANGLE)) {
+    } 
+    
+    else if (!(btn & SCE_CTRL_HOLD) && (btn & SCE_CTRL_SELECT)) {
+        toggle_ftp();
+        return MAIN_SCREEN;
+    } 
+    
+    else if (!(btn & SCE_CTRL_HOLD) && (btn & SCE_CTRL_TRIANGLE)) {
         return MENU_OPEN;
+    } 
+    
+    else if (!(btn & SCE_CTRL_HOLD) && (btn & SCE_CTRL_SQUARE)) {
+        select_sort_menu = current_sort_mode;
+        return SORT_MENU_OPEN;
     }
 
     return UNKNOWN;
@@ -604,18 +691,23 @@ static ScreenState on_appinfo_event() {
 
         ret = PRINT_APPINFO;
 
-    } else if (btn & SCE_CTRL_DOWN) {
+    } 
+    
+    else if (btn & SCE_CTRL_DOWN) {
         select_appinfo_button = select_appinfo_button+1 == appinfo_btns ?
-                                    select_appinfo_button:select_appinfo_button+1;
+                                select_appinfo_button : select_appinfo_button+1;
 
         ret = PRINT_APPINFO;
 
-     } else if (!(btn & SCE_CTRL_HOLD) && (btn & SCE_CTRL_CANCEL)) {
+     } 
+     
+     else if (!(btn & SCE_CTRL_HOLD) && (btn & SCE_CTRL_CANCEL)) {
         ret = MAIN_SCREEN;
 
-    } else if (!(btn & SCE_CTRL_HOLD) && (btn & SCE_CTRL_ENTER)) {
+    } 
+    
+    else if (!(btn & SCE_CTRL_HOLD) && (btn & SCE_CTRL_ENTER)) {
         select_slot = 0;
-
         switch (select_appinfo_button) {
             case 0:
                 ret = (savelist_tab ? RESTORE_MODE:BACKUP_MODE);
@@ -727,6 +819,28 @@ static ScreenState on_menuopen_event() {
     return ret;
 }
 
+static ScreenState on_sortmenu_event(applist *gamelist, applist *savelist) {
+    int btn = read_buttons();
+
+    if (!(btn & SCE_CTRL_HOLD) && ((btn & SCE_CTRL_CANCEL) || (btn & SCE_CTRL_SQUARE))) {
+        return MAIN_SCREEN;
+    } else if (btn & SCE_CTRL_UP) {
+        select_sort_menu = select_sort_menu - 1 < 0 ? 0 : select_sort_menu - 1;
+    } else if (btn & SCE_CTRL_DOWN) {
+        select_sort_menu = select_sort_menu + 1 == 4 ? select_sort_menu : select_sort_menu + 1;
+    } else if (!(btn & SCE_CTRL_HOLD) && (btn & SCE_CTRL_ENTER)) {
+        if (current_sort_mode != select_sort_menu) {
+            current_sort_mode = select_sort_menu;
+            save_config();
+            sort_applist(gamelist);
+            sort_applist(savelist);
+            refreshUI = 1;
+        }
+        return MAIN_SCREEN;
+    }
+    return SORT_MENU_OPEN;
+}
+
 static int copy_savedata_to_slot(appinfo *info, int slot, applist *savelist) {
     char *src = save_dir_path(info);
     char *dest = slot_dir_path(info, slot);
@@ -735,7 +849,6 @@ static int copy_savedata_to_slot(appinfo *info, int slot, applist *savelist) {
     int res = NO_ERROR;
 
     if (!src) {
-        // TODO: need popup; need start game
         res = ERROR_NO_SAVE_DIR;
         goto exit;
     }
@@ -762,7 +875,7 @@ static int copy_savedata_to_slot(appinfo *info, int slot, applist *savelist) {
         copy_file(info->iconpath, icn, 0);
 
     max = count_files(src, info->is_decrypted);
-    init_progress(max);
+    init_progress(max, "Preparing backup...");
 
     if (!copy_dir_recursive(src, dest, incr_progress, &curr, max, info->is_decrypted)) {
         res = ERROR_COPY_DIR;
@@ -823,7 +936,7 @@ static int copy_slot_to_savedata(appinfo *info, int slot, applist *savelist) {
         res = ERROR_DECRYPT_DIR;
         goto exit;
 
-    } else if (!info->is_decrypted && !forceRestore) { // TODO useless?
+    } else if (!info->is_decrypted && !forceRestore) {
         char *sfo = slot_sfo_path(info, slot);
         uint64_t sfoAID, aid;
 
@@ -848,7 +961,7 @@ static int copy_slot_to_savedata(appinfo *info, int slot, applist *savelist) {
     if (!info->is_decrypted && path_exists(dest)) remove_dir_recursive(dest, NULL, NULL, 0);
 
     create_dir(dest, 0777);
-    init_progress(max);
+    init_progress(max, "Preparing backup...");
 
     if (!copy_dir_recursive(src, dest, incr_progress, &curr, max, info->is_decrypted)) {
         res = ERROR_COPY_DIR;
@@ -895,7 +1008,7 @@ static int delete_slot(appinfo *info, int slot, applist *savelist) {
     lock_psbutton();
 
     max = count_files(target, 0)+1;
-    init_progress(max);
+    init_progress(max, "Deleting slot...");
     remove_dir_recursive(target, incr_progress, &curr, max);
     snprintf(parent, sizeof(parent), "%s/%s", savemgr_fpath, info->title_id);
 
@@ -926,7 +1039,7 @@ static int format_savedata(appinfo *info, applist *list) {
     lock_psbutton();
 
     max = count_files(target, 0);
-    init_progress(max);
+    init_progress(max, "Formatting...");
     remove_dir_recursive(target, incr_progress, &curr, max);
 
     if (!info->is_installed) {
@@ -951,7 +1064,9 @@ static int change_save_region(appinfo *info, applist *savelist) {
     if (!new_tid) {
         return res;
 
-    } else if (new_tid[0] != 'P' || new_tid[1] != 'C' || new_tid[2] != 'S') {
+    }
+
+    if (strlen(new_tid) != 9 || new_tid[0] != 'P' || new_tid[1] != 'C' || new_tid[2] != 'S') {
         free(new_tid);
         return ERROR_INV_TITLEID;
     }
@@ -1005,7 +1120,7 @@ static int backup_all(const applist *gamelist, applist *savelist, int decrypt) {
     int curr = 0;
     int res = NO_ERROR;
 
-    init_progress(gamelist->count);
+    init_progress(gamelist->count, "Preparing bulk backup...");
 
     while (tmp) {
         int save_slot = 0;
@@ -1023,7 +1138,7 @@ static int backup_all(const applist *gamelist, applist *savelist, int decrypt) {
         }
 
         free(slotdir);
-        incr_progress(&curr, gamelist->count);
+        incr_progress(&curr, gamelist->count, tmp->title);
 
         if (save_slot == 10)
             continue; // no free slot, skip :|
@@ -1050,11 +1165,59 @@ static int delete_all_slots(applist *savelist) {
 
     max = count_files(savemgr_fpath, 0);
 
-    init_progress(max);
+    init_progress(max, "Preparing deletion...");
     res = remove_dir_recursive(savemgr_fpath, incr_progress, &curr, max);
     free_list(savelist);
 
     return (res > 0 ? NO_ERROR:ERROR_DELETE_DIR);
+}
+
+static void draw_guide_item(int *cursor_x, int y, const char *sym, const char *text) {
+    int text_w = vita2d_pgf_text_width(font, 1.0, text);
+    int sym_w = vita2d_pvf_text_width(symbol_font, 1.0, sym);
+
+    int spacing = 6;
+    int margin = 20;
+
+    *cursor_x -= text_w;
+    vita2d_pgf_draw_text(font, *cursor_x, y, THEME_GUIDE_TEXT, 1.0, text);
+
+    *cursor_x -= (sym_w + spacing);
+    vita2d_pvf_draw_text(symbol_font, *cursor_x, y, THEME_GUIDE_TEXT, 1.0, sym); 
+
+    *cursor_x -= margin;
+}
+
+static void draw_sort_menu() {
+    int fontH = vita2d_pgf_text_height(font, 1.2, "T") + 10;
+    int menuW = SCREEN_HALF_WIDTH + 60;
+    int menuH = (fontH * 4) + 50;
+    int menuX = (SCREEN_WIDTH - menuW) / 2;
+    int menuY = (SCREEN_HEIGHT - menuH) / 2;
+    int textX = menuX + 15;
+    int rightX = menuX + menuW - 15;
+    int textY = menuY + fontH + 5;
+
+    vita2d_draw_rectangle(menuX-5, menuY-5, menuW+10, menuH+10, current_accent_color);
+    vita2d_draw_rectangle(menuX, menuY, menuW, menuH, is_dark_mode ? COLOR_DARK_BG : COLOR_LIGHT_BG);
+
+    const char *options[4] = {
+        "Sort by Title (A-Z)",
+        "Sort by Title (Z-A)",
+        "Sort by Title ID (ASC)",
+        "Sort by Title ID (DESC)"
+    };
+
+    for (int i = 0; i < 4; i++) {
+        unsigned int color = (select_sort_menu == i ? THEME_TEXT : THEME_TEXT_MUTED);
+        vita2d_pgf_draw_text(font, textX, textY, color, 1.2, options[i]);
+        
+        if (current_sort_mode == i) {
+            int val_w = vita2d_pgf_text_width(font, 1.2, "Selected");
+            vita2d_pgf_draw_text(font, rightX - val_w, textY, color, 1.2, "Selected");
+        }
+        textY += fontH;
+    }
 }
 
 static void draw_screen(ScreenState state, applist *list, int slot) {
@@ -1069,6 +1232,11 @@ static void draw_screen(ScreenState state, applist *list, int slot) {
     if (state == MENU_OPEN) {
         vita2d_draw_rectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, RGBA8(0, 0, 0, 150));
         draw_menu();
+    }
+
+    else if (state == SORT_MENU_OPEN) {
+        vita2d_draw_rectangle(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT, RGBA8(0, 0, 0, 150));
+        draw_sort_menu();
     }
 
     if (state >= PRINT_APPINFO && state <= REGION_SET_FAIL)
@@ -1096,17 +1264,19 @@ static void draw_screen(ScreenState state, applist *list, int slot) {
     }
 
    if (state == MAIN_SCREEN) {
-        char guide_text[128];
-        snprintf(guide_text, sizeof(guide_text), "%s %s Select   L R Switch Tabs   %s Confirm   %s Toggle Settings", 
-                 ICON_UPDOWN, ICON_LEFTRIGHT, ICON_ENTER, ICON_TRIANGLE);
+        if (is_ftp_active) {
+            vita2d_pgf_draw_text(font, 15, SCREEN_HEIGHT - 15, current_accent_color, 1.0, ftp_ip_str);
+        }
 
-        int guide_w = vita2d_pgf_text_width(font, 1.0, guide_text);
-        int guide_h = vita2d_pgf_text_height(font, 1.0, guide_text);
-        int bg_width = guide_w + 30;
-        int bg_height = guide_h + 16;
-        int bg_x = SCREEN_WIDTH - bg_width;
-        int bg_y = SCREEN_HEIGHT - bg_height;
-        vita2d_pgf_draw_text(font, bg_x + 15, bg_y + guide_h + 8, THEME_GUIDE_TEXT, 1.0, guide_text);
+        int cursor_x = SCREEN_WIDTH - 15;
+        int text_y = SCREEN_HEIGHT - 15;
+
+        draw_guide_item(&cursor_x, text_y, ICON_TRIANGLE, "Settings");
+        draw_guide_item(&cursor_x, text_y, ICON_SQUARE,   "Sort");
+        draw_guide_item(&cursor_x, text_y, ICON_ENTER,    "Confirm");
+        draw_guide_item(&cursor_x, text_y, ICON_SELECT,   "FTP");
+        draw_guide_item(&cursor_x, text_y, ICON_TRIGGERS, "Tabs"); 
+        draw_guide_item(&cursor_x, text_y, ICON_LJOY,     "Select");
     }
 
     vita2d_end_drawing();
@@ -1130,17 +1300,23 @@ static ScreenState noslot_state_machine(applist *list, ScreenState confirm_state
         if (state == confirm_state) {
             new_state = confirm(confirm_msg, 1.0, 0) == CONFIRM ? progress_state:exit_state;
 
-        } else if (state == progress_state) {
+        } 
+        
+        else if (state == progress_state) {
             draw_screen(state, list, -1);
             draw_screen(state, list, -1);
             last_error = progress_func(list->choose, list);
             new_state = last_error != NO_ERROR ? fail_state:exit_state;
 
-        } else if (state == fail_state) {
+        } 
+        
+        else if (state == fail_state) {
             new_state = exit_state;
             alert(error_message(last_error), 1.0);
 
-        } else {
+        } 
+        
+        else {
             return state;
         }
 
@@ -1169,7 +1345,9 @@ static ScreenState slot_state_machine(applist *list, applist *savelist,
             if (new_state == UNKNOWN && slot >= 0)
                 new_state = confirm_state;
 
-        } else if (state == confirm_state) {
+        } 
+        
+        else if (state == confirm_state) {
             char tmp[256];
             snprintf(tmp, sizeof(tmp), confirm_msg, slot);
             
@@ -1191,7 +1369,9 @@ static ScreenState slot_state_machine(applist *list, applist *savelist,
                 }
             }
 
-        } else if (state == progress_state) {
+        } 
+        
+        else if (state == progress_state) {
             int oldSavelistC = savelist->count;
             draw_screen(state, list, slot);
             draw_screen(state, list, slot);
@@ -1202,16 +1382,19 @@ static ScreenState slot_state_machine(applist *list, applist *savelist,
             if (savelist_tab && start_state == DELETE_MODE && last_error == NO_ERROR && oldSavelistC > savelist->count)
                 new_state = MAIN_SCREEN;
 
-        } else if (state == fail_state) {
+        } 
+        
+        else if (state == fail_state) {
             alert(error_message(last_error), 1.0);
             new_state = start_state;
 
-        } else {
+        } 
+        
+        else {
             break;
         }
 
-        if (new_state != UNKNOWN)
-            state = new_state;
+        if (new_state != UNKNOWN) state = new_state;
     }
 
     return state;
@@ -1234,10 +1417,14 @@ static ScreenState backupall_state_machine(applist *list, const applist *gamelis
         if (state == start_state) {
             new_state = confirm_state;
 
-        } else if (state == confirm_state) {
+        } 
+        
+        else if (state == confirm_state) {
             new_state = confirm(confirm_msg, 1.0, 0) == CONFIRM ? progress_state:exit_state;
 
-        } else if (state == progress_state) {
+        } 
+        
+        else if (state == progress_state) {
             int decrypt = start_state == BACKUPALL_MODE ? 1:0;
             draw_screen(state, list, -1);
             draw_screen(state, list, -1);
@@ -1245,11 +1432,15 @@ static ScreenState backupall_state_machine(applist *list, const applist *gamelis
             last_error = progress_func(gamelist, savelist, decrypt);
             new_state = last_error != NO_ERROR ? fail_state:exit_state;
 
-        } else if (state == fail_state) {
+        } 
+        
+        else if (state == fail_state) {
             new_state = exit_state;
             alert(error_message(last_error), 1.0);
 
-        } else {
+        } 
+        
+        else {
             break;
         }
 
@@ -1276,20 +1467,28 @@ static ScreenState deleteslots_state_machine(applist *list, applist *savelist,
         if (state == start_state) {
             new_state = confirm_state;
 
-        } else if (state == confirm_state) {
+        } 
+        
+        else if (state == confirm_state) {
             new_state = confirm(confirm_msg, 1.0, 0) == CONFIRM ? progress_state:exit_state;
 
-        } else if (state == progress_state) {
+        } 
+        
+        else if (state == progress_state) {
             draw_screen(state, list, -1);
             draw_screen(state, list, -1);
             last_error = progress_func(savelist);
             new_state = last_error != NO_ERROR ? fail_state:exit_state;
 
-        } else if (state == fail_state) {
+        } 
+        
+        else if (state == fail_state) {
             new_state = exit_state;
             alert(error_message(last_error), 1.0);
 
-        } else {
+        } 
+        
+        else {
             break;
         }
 
@@ -1303,14 +1502,14 @@ static ScreenState deleteslots_state_machine(applist *list, applist *savelist,
 static ScreenState switch_device(applist *savelist) {
     int prog = 0;
 
-    init_progress(2); // just to show something, it may take a second or two for big lists
+    init_progress(2, "Scanning device...");
 
     if (!path_exists(savemgr_fpath)) create_dir(savemgr_fpath, 0777);
 
     free_list(savelist);
-    incr_progress(&prog, 2);
+    incr_progress(&prog, 2, "Loading Game List...");
     get_savelist(savelist);
-    incr_progress(&prog, 2);
+    incr_progress(&prog, 2, "Loading Backup List...");
 
     old_savelist_tab = 0; // to trigger list update
     refreshUI = 1;
@@ -1326,12 +1525,13 @@ static int mainloop() {
     int ret, rows, steps;
 
     ret = get_applist(&gamelist);
-    if (ret < 0) // loading error
-        return -1;
+    if (ret < 0) return -1;
 
     ret = get_savelist(&savelist);
-    if (ret < 0) // loading error
-        return -1;
+    if (ret < 0) return -1;
+
+    sort_applist(&gamelist);
+    sort_applist(&savelist);
 
     list->curr = list->items;
     select_row = select_col = 0;
@@ -1356,39 +1556,42 @@ static int mainloop() {
             case MENU_OPEN:
                 new_state = on_menuopen_event();
                 break;
+            case SORT_MENU_OPEN:
+                new_state = on_sortmenu_event(&gamelist, &savelist);
+                break;
             case BACKUP_MODE:
                 new_state = slot_state_machine(list, &savelist,
                                                 BACKUP_MODE, BACKUP_CONFIRM,
                                                 BACKUP_PROGRESS, BACKUP_FAIL,
-                                                "Backup savedata to slot %d",
+                                                "Backup savedata to slot %d?",
                                                 copy_savedata_to_slot);
                 break;
             case RESTORE_MODE:
                 new_state = slot_state_machine(list, NULL,
                                                 RESTORE_MODE, RESTORE_CONFIRM,
                                                 RESTORE_PROGRESS, RESTORE_FAIL,
-                                                "Restore savedata from slot %d",
+                                                "Restore savedata from slot %d?",
                                                 copy_slot_to_savedata);
                 break;
             case DELETE_MODE:
                 new_state = slot_state_machine(list, &savelist,
                                                 DELETE_MODE, DELETE_CONFIRM,
                                                 DELETE_PROGRESS, DELETE_FAIL,
-                                                "Delete save slot %d",
+                                                "Delete save slot %d?",
                                                 delete_slot);
                 break;
             case FORMAT_MODE:
                 new_state = noslot_state_machine(list,
                                                 FORMAT_CONFIRM, FORMAT_PROGRESS,
                                                 FORMAT_FAIL, PRINT_APPINFO,
-                                                "Format game savedata",
+                                                "Format game save data?",
                                                 format_savedata);
                 break;
             case REGION_SET_MODE:
                 new_state = noslot_state_machine(list,
                                                 REGION_SET_CONFIRM, REGION_SET_PROGRESS,
                                                 REGION_SET_FAIL, PRINT_APPINFO,
-                                                "Change savefile region",
+                                                "Change savefile region?",
                                                 change_save_region);
                 break;
             case BACKUPALL_MODE:
@@ -1412,7 +1615,7 @@ static int mainloop() {
                                                 DELETE_ALL_SLOTS_MODE, DELETE_ALL_SLOTS_CONFIRM,
                                                 DELETE_ALL_SLOTS_PROGRESS, DELETE_ALL_SLOTS_FAIL,
                                                 MAIN_SCREEN,
-                                                "Delete all saves slots",
+                                                "Delete all save slots?",
                                                 delete_all_slots);
                 break;
             case SWITCH_CURR_DEVICE:
@@ -1446,49 +1649,30 @@ static int mainloop() {
 
 static int init_devices(char **error) {
     char *dev[5] = {"ux0","ur0","uma0","imc0","xmc0"};
-    int devE[5] = {0,0,0,0,0};
-    size_t len = sizeof(char) * 5;
+    
+    device_num = 0;
 
     for (int i=0; i<5; ++i) {
         char tmp[6] = {0};
-
         snprintf(tmp, sizeof(tmp), "%s:", dev[i]);
+        
         if (path_exists(tmp)) {
-            devE[i] = 1;
-            ++device_num;
+            snprintf(devices[device_num], 6, "%s", dev[i]);
+            device_num++;
         }
     }
 
-    if (!device_num)
-        goto exit_error;
-
-    devices = malloc(sizeof(char*) * device_num);
-    if (!devices)
-        goto exit_error;
-
-    for (int i=0, j=0; i<device_num; ++i, ++j) {
-        while (!devE[j])
-            ++j;
-
-        devices[i] = malloc(len);
-        if (!devices[i])
-            goto exit_error;
-
-        snprintf(devices[i], len, dev[j]);
+    if (!device_num) {
+        size_t len = sizeof(char) * 20;
+        *error = malloc(len);
+        if (*error) snprintf(*error, len, "Cannot init devices");
+        return 0;
     }
 
-    snprintf(cur_device, len, "%s", devices[0]);
+    snprintf(cur_device, 6, "%s", devices[0]);
     snprintf(savemgr_fpath, sizeof(char)*26, "%s%s", devices[0], SAVEMGR_FOLDER);
 
     return 1;
-
-exit_error:
-    len = sizeof(char) * 20;
-    *error = malloc(len);
-    if (*error)
-        snprintf(*error, len, "Cannot init devices");
-
-    return 0;
 }
 
 int main() {
@@ -1498,6 +1682,7 @@ int main() {
     vita2d_set_clear_color(BLACK);
 
     font = load_system_fonts();
+    symbol_font = load_symbol_font();
 
     if (!load_modules(&error))
         goto fatal_error;
@@ -1509,22 +1694,20 @@ int main() {
         create_dir(savemgr_fpath, 0777);
 
     load_config();
-    
-    if (!path_exists(savemgr_fpath))
-        create_dir(savemgr_fpath, 0777);
 
     sceAppMgrUmount("app0:");
     sceAppMgrUmount("savedata0:");
 
     init_input();
-    init_console();
 
     while (mainloop() >= 0);
 
-    for (int i=0; i<device_num; ++i)
-        free(devices[i]);
-    free(devices);
-
+    if (is_ftp_active) {
+        ftpvita_fini();
+    }
+    
+    vita2d_free_pvf(symbol_font);
+    vita2d_free_pgf(font);
     sceKernelExitProcess(0);
     return 0;
 

@@ -8,12 +8,13 @@
 #define SAVE_MANAGER    "SAVEMGRPP"
 #define SAVEMGR_FOLDER  ":data/vitaSaveManager"
 
-#define ICON_CIRCLE   "\xe2\x97\x8b"
-#define ICON_CROSS    "\xe2\x95\xb3"
-#define ICON_SQUARE   "\xe2\x96\xa1"
-#define ICON_TRIANGLE "\xe2\x96\xb3"
-#define ICON_LEFTRIGHT "\xe2\x86\x94"
-#define ICON_UPDOWN   "\xe2\x86\x95"
+#define ICON_CIRCLE   "%"
+#define ICON_CROSS    "&"
+#define ICON_SQUARE   "'"
+#define ICON_TRIANGLE "$"
+#define ICON_TRIGGERS "01"
+#define ICON_LJOY     "2"
+#define ICON_SELECT   "4"
 
 #define SCREEN_WIDTH                960
 #define SCREEN_HEIGHT               544
@@ -154,16 +155,11 @@
 
 extern int SCE_CTRL_ENTER;
 extern int SCE_CTRL_CANCEL;
-extern char ICON_ENTER[4];
-extern char ICON_CANCEL[4];
+extern char ICON_ENTER[2];
+extern char ICON_CANCEL[2];
 
 extern vita2d_pgf* font;
-extern char confirm_msg[64];
-extern int confirm_msg_width;
-extern char close_msg[64];
-extern int close_msg_width;
-extern char yesno_msg[64];
-extern int yesno_msg_width;
+extern vita2d_pvf* symbol_font;
 
 extern const unsigned int accent_colors[];
 extern const char *accent_color_names[];

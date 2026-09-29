@@ -12,7 +12,7 @@
 	<frame id="frame1">
 		<liveitem>
 			<text valign="bottom" align="left" text-align="left" text-valign="bottom" line-space="3" ellipsis="on">
-				<str color="#ffffff" size="36" bold="on" shadow="on">Vita Save Manager++</str>
+				<str color="#ffffff" size="36" bold="on">Vita Save Manager++</str>
 			</text>
 		</liveitem>
 	</frame>
@@ -20,7 +20,7 @@
 	<frame id="frame4">
 		<liveitem>
 			<text align="right" text-align="right" word-wrap="off" ellipsis="on">
-				<str size="18" color="#ffffff" shadow="on">v4.2.0</str>
+				<str size="18" color="#ffffff">v5.0.0</str>
 			</text>
 		</liveitem>
 	</frame>
