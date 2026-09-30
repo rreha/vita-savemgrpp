@@ -1681,6 +1681,8 @@ int main() {
     vita2d_init();
     vita2d_set_clear_color(BLACK);
 
+    sceCommonDialogSetConfigParam(&(SceCommonDialogConfigParam){});
+
     font = load_system_fonts();
     symbol_font = load_symbol_font();
 

@@ -17,6 +17,7 @@ See [CHANGELOG.md](CHANGELOG.md).
 - Restore encrypted and decrypted saves
 - Change savefile region
 - Select your prefered device to use as the backup device (`ux0:`, `ur0:`, `uma0:`, `imc0` or `xmc0:`)
+- Toggle FTP and transfer saves
 - Customize UI (choose between Dark/Light Mode, and pick from different accent colors)
 
 ## Controls

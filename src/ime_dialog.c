@@ -1,14 +1,8 @@
 // vitasdk sample (yne)
 #include <string.h>
 #include <stdlib.h>
-
-#include <psp2/types.h>
-#include <psp2/kernel/processmgr.h>
-#include <psp2/message_dialog.h>
 #include <psp2/ime_dialog.h>
-#include <psp2/display.h>
-#include <psp2/gxm.h>
-#include <psp2/kernel/sysmem.h>
+#include <vita2d.h>
 
 #define ALIGN(x, a)                 (((x) + ((a) - 1)) & ~((a) - 1))
 #define DISPLAY_WIDTH               960
@@ -16,17 +10,6 @@
 #define DISPLAY_STRIDE_IN_PIXELS    1024
 #define DISPLAY_BUFFER_COUNT        2
 #define DISPLAY_MAX_PENDING_SWAPS   1
-
-typedef struct{
-    void *data;
-    SceGxmSyncObject*sync;
-    SceGxmColorSurface surf;
-    SceUID uid;
-} displayBuffer;
-
-static unsigned int backBufferIndex = 0;
-static unsigned int frontBufferIndex = 0;
-displayBuffer dbuf[DISPLAY_BUFFER_COUNT];
 
 // VitaShell code
 static void utf16_to_utf8(const uint16_t *src, uint8_t *dst) {
@@ -90,57 +73,18 @@ static void *dram_alloc(unsigned int size, SceUID *uid){
     return mem;
 }
 
-static void gxm_init(){
-    unsigned int i;
-
-    for (i=0; i<DISPLAY_BUFFER_COUNT; ++i) {
-        dbuf[i].data = dram_alloc(4 * DISPLAY_STRIDE_IN_PIXELS*DISPLAY_HEIGHT, &dbuf[i].uid);
-
-        sceGxmColorSurfaceInit(&dbuf[i].surf, SCE_GXM_COLOR_FORMAT_A8B8G8R8,
-                                SCE_GXM_COLOR_SURFACE_LINEAR, SCE_GXM_COLOR_SURFACE_SCALE_NONE,
-                                SCE_GXM_OUTPUT_REGISTER_SIZE_32BIT, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-                                DISPLAY_STRIDE_IN_PIXELS,dbuf[i].data);
-        sceGxmSyncObjectCreate(&dbuf[i].sync);
-	}
-
-    return;
-}
-
-static void gxm_swap(){
-    sceGxmPadHeartbeat(&dbuf[backBufferIndex].surf, dbuf[backBufferIndex].sync);
-    sceGxmDisplayQueueAddEntry(dbuf[frontBufferIndex].sync, dbuf[backBufferIndex].sync,
-                                &dbuf[backBufferIndex].data);
-
-    frontBufferIndex = backBufferIndex;
-    backBufferIndex = (backBufferIndex + 1) % DISPLAY_BUFFER_COUNT;
-
-    return;
-}
-
-static void gxm_term(){
-    sceKernelFreeMemBlock(dbuf[0].uid);
-    sceKernelFreeMemBlock(dbuf[1].uid);
-
-    return;
-}
-
 char *showImeDialog(const char *initialText) {
-    uint16_t initialText_utf16[SCE_IME_DIALOG_MAX_TEXT_LENGTH];
+    uint16_t initialText_utf16[SCE_IME_DIALOG_MAX_TEXT_LENGTH] = {0};
     uint16_t input[10 + 1] = {0};
     SceImeDialogParam param;
     char *ret = NULL;
-    int res;
 
-    sceCommonDialogSetConfigParam(&(SceCommonDialogConfigParam){});
-    utf8_to_utf16((uint8_t *)initialText, initialText_utf16);
-
-    gxm_init();
+    utf8_to_utf16((const uint8_t *)initialText, initialText_utf16);
 
     sceImeDialogParamInit(&param);
-
     param.supportedLanguages = SCE_IME_LANGUAGE_ENGLISH;
     param.languagesForced = SCE_TRUE;
-    param.type = SCE_IME_DIALOG_TEXTBOX_MODE_DEFAULT;
+    param.type = SCE_IME_TYPE_DEFAULT;
     param.option = 0;
     param.textBoxMode = SCE_IME_DIALOG_TEXTBOX_MODE_DEFAULT;
     param.title = u"New Title ID";
@@ -148,44 +92,26 @@ char *showImeDialog(const char *initialText) {
     param.initialText = initialText_utf16;
     param.inputTextBuffer = input;
 
-    res = sceImeDialogInit(&param);
-    if (res < 0)
+    if (sceImeDialogInit(&param) < 0)
         return NULL;
 
-    while (1) {
-        SceCommonDialogStatus status = sceImeDialogGetStatus();
-
-        memset(dbuf[backBufferIndex].data, 0xff000000, DISPLAY_HEIGHT * DISPLAY_STRIDE_IN_PIXELS * 4);
-
-        if (status == SCE_COMMON_DIALOG_STATUS_FINISHED) {
-            SceImeDialogResult result;
-
-            memset(&result, 0, sizeof(SceImeDialogResult));
-            sceImeDialogGetResult(&result);
-
-            if (result.button == SCE_IME_DIALOG_BUTTON_ENTER) {
-                uint8_t *tmp = malloc(sizeof(uint8_t) * 11);
-
-                utf16_to_utf8(input, tmp);
-                ret = (char *)tmp;
-            }
-
-            sceImeDialogTerm();
-            break;
-        }
-
-        sceCommonDialogUpdate(&(SceCommonDialogUpdateParam) {
-            {
-                NULL, dbuf[backBufferIndex].data, 0, 0,
-                DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_STRIDE_IN_PIXELS
-            },
-            dbuf[backBufferIndex].sync});
-
-        gxm_swap();
-        sceDisplayWaitVblankStart();
+    while (sceImeDialogGetStatus() != SCE_COMMON_DIALOG_STATUS_FINISHED) {
+        vita2d_start_drawing();
+        vita2d_clear_screen();
+        vita2d_end_drawing();
+        vita2d_common_dialog_update();
+        vita2d_swap_buffers();
     }
 
-    gxm_term();
+    SceImeDialogResult result;
+    memset(&result, 0, sizeof(result));
+    sceImeDialogGetResult(&result);
 
+    if (result.button == SCE_IME_DIALOG_BUTTON_ENTER) {
+        ret = malloc(10 * 3 + 1);          // worst case UTF-8 size
+        if (ret) utf16_to_utf8(input, (uint8_t *)ret);
+    }
+
+    sceImeDialogTerm();
     return ret;
 }

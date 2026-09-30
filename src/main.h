@@ -4,6 +4,7 @@
 #include <psp2/kernel/processmgr.h>
 #include <psp2/system_param.h>
 #include <psp2/rtc.h>
+#include <psp2/ime_dialog.h>
 #include <psp2/shellutil.h>
 #include <psp2/net/net.h>
 #include <psp2/net/netctl.h>
