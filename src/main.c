@@ -190,7 +190,7 @@ static void toggle_ftp() {
         ftpvita_add_device("xmc0:");
         ftpvita_add_device("grw0:");
 
-        snprintf(ftp_ip_str, sizeof(ftp_ip_str), "ftp://%s:%i", vita_ip, vita_port);
+        snprintf(ftp_ip_str, sizeof(ftp_ip_str), "%s:%i", vita_ip, vita_port);
         is_ftp_active = 1;
     } 
     

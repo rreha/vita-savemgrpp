@@ -600,10 +600,6 @@ static void gen_ftp_fullpath(ftpvita_client_info_t *client, char *path, size_t p
     strncpy(cmd_path, client->recv_cmd_args, len);
     cmd_path[len] = '\0';
 
-    if (len != 1) {
-        cmd_path[0] = '\0';
-    }
-
 	if (cmd_path[0] == '/') {
 		/* Full path */
 		strncpy(path, cmd_path, path_size);
