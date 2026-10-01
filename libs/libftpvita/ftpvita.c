@@ -414,10 +414,16 @@ static void cmd_LIST_func(ftpvita_client_info_t *client)
 	char list_path[PATH_MAX];
 	int list_cur_path = 1;
 
-	int n = sscanf(client->recv_cmd_args, "%[^\r\n\t]", list_path);
+	size_t len = strcspn(client->recv_cmd_args, "\r\n\t");
+    if (len >= sizeof(list_path)) {
+        len = sizeof(list_path) - 1;
+    }
+    
+    strncpy(list_path, client->recv_cmd_args, len);
+    list_path[len] = '\0';
 
-	if (n > 0 && file_exists(get_vita_path(list_path)))
-		list_cur_path = 0;
+    if (len > 0 && file_exists(get_vita_path(list_path)))
+        list_cur_path = 0;
 
 	if (list_cur_path)
 		send_LIST(client, client->cur_path);
@@ -462,9 +468,15 @@ static void cmd_CWD_func(ftpvita_client_info_t *client)
 	char cmd_path[PATH_MAX];
 	char tmp_path[PATH_MAX];
 	SceUID pd;
-	int n = sscanf(client->recv_cmd_args, "%1023[^\r\n\t]", cmd_path);
+	
+	size_t len = strcspn(client->recv_cmd_args, "\r\n\t");
+    if (len >= sizeof(cmd_path)) {
+        len = sizeof(cmd_path) - 1;
+    }
+    strncpy(cmd_path, client->recv_cmd_args, len);
+    cmd_path[len] = '\0';
 
-	if (n < 1) {
+	if (len < 1) {
 		client_send_ctrl_msg(client, "500 Syntax error, command unrecognized." FTPVITA_EOL);
 	} else {
 		if (strcmp(cmd_path, "/") == 0) {
@@ -542,6 +554,7 @@ static void send_file(ftpvita_client_info_t *client, const char *path)
 
 	if ((fd = sceIoOpen(path, SCE_O_RDONLY, 0777)) >= 0) {
 
+		/* sceIoLseek instead of sceIoLseek32 since we used SceOff for restore_point */
 		sceIoLseek(fd, client->restore_point, SCE_SEEK_SET);
 
 		buffer = malloc(file_buf_size);
@@ -575,12 +588,21 @@ static void gen_ftp_fullpath(ftpvita_client_info_t *client, char *path, size_t p
 {
 	char cmd_path[PATH_MAX];
 
-	int n = sscanf(client->recv_cmd_args, "%1023[^\r\n\t]", cmd_path);
-    if (n != 1) {
+	/* Dynamically measure string up to \r, \n, or \t */
+	size_t len = strcspn(client->recv_cmd_args, "\r\n\t");
+
+	/* Cap the length to the size of our buffer minus 1 for the null terminator */
+    if (len >= sizeof(cmd_path)) {
+        len = sizeof(cmd_path) - 1;
+    }
+    
+    /* Safely copy and force null-termination */
+    strncpy(cmd_path, client->recv_cmd_args, len);
+    cmd_path[len] = '\0';
+
+    if (len != 1) {
         cmd_path[0] = '\0';
     }
-
-	sscanf(client->recv_cmd_args, "%[^\r\n\t]", cmd_path);
 
 	if (cmd_path[0] == '/') {
 		/* Full path */
@@ -791,6 +813,7 @@ static void cmd_SIZE_func(ftpvita_client_info_t *client)
 static void cmd_REST_func(ftpvita_client_info_t *client)
 {
 	char cmd[64];
+    /* Using %d overflows on files >2GB, so we use %lld (64-bit long long) */
 	sscanf(client->recv_buffer, "%*[^ ] %lld", &client->restore_point);
 	sprintf(cmd, "350 Resuming at %lld" FTPVITA_EOL, client->restore_point);
 	client_send_ctrl_msg(client, cmd);
@@ -823,14 +846,26 @@ static void cmd_MFMT_func(ftpvita_client_info_t *client)
     char dest_path[PATH_MAX];
     SceIoStat stat;
     SceDateTime mtime;
+	int offset = 0;
 
-    /* Parse the 14 char timestamp and the file path */
-    int n = sscanf(client->recv_cmd_args, "%14s %[^\r\n\t]", time_str, cmd_path);
+    /* Safely parse time, then use %n to find where the path starts */
+    int n = sscanf(client->recv_cmd_args, "%14s %n", time_str, &offset);
 
-    if (n < 2) {
+    if (n < 1 || offset == 0) {
         client_send_ctrl_msg(client, "501 Syntax error in parameters." FTPVITA_EOL);
         return;
     }
+
+    /* Grab a pointer to where the path begins in the string */
+    char *path_start = client->recv_cmd_args + offset;
+    
+    /* Dynamically extract the path safely */
+    size_t len = strcspn(path_start, "\r\n\t");
+    if (len >= sizeof(cmd_path)) {
+        len = sizeof(cmd_path) - 1;
+    }
+    strncpy(cmd_path, path_start, len);
+    cmd_path[len] = '\0';
 
     /* Convert the FTP path to a Vita path */
     if (cmd_path[0] == '/') {
@@ -1031,8 +1066,9 @@ static int client_thread(SceSize args, void *argp)
 	while (1) {
 		memset(client->recv_buffer, 0, sizeof(client->recv_buffer));
 
-		client->n_recv = sceNetRecv(client->ctrl_sockfd, client->recv_buffer, sizeof(client->recv_buffer), 0);
+		client->n_recv = sceNetRecv(client->ctrl_sockfd, client->recv_buffer, sizeof(client->recv_buffer) - 1, 0);
 		if (client->n_recv > 0) {
+			client->recv_buffer[client->n_recv] = '\0';
 			DEBUG("Received %i bytes from client number %i:\n",
 				client->n_recv, client->num);
 

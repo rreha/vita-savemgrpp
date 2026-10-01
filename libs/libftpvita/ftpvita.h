@@ -61,7 +61,12 @@ typedef struct ftpvita_client_info {
 	struct ftpvita_client_info *next;
 	struct ftpvita_client_info *prev;
 	/* Offset for transfer resume */
-	SceOff restore_point;
+	/* 
+		We used SceOff (int64_t) instead of unsigned int for restore point because this prevents 
+		32-bit int overflow when clients send REST commands with offsets larger than 2GB. 
+		Thus, enabling >4GB file resumes.
+	*/
+	SceOff restore_point; 
 } ftpvita_client_info_t;
 
 
