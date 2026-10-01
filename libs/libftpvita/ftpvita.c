@@ -177,6 +177,12 @@ static void cmd_PASV_func(ftpvita_client_info_t *client)
 		SCE_NET_AF_INET,
 		SCE_NET_SOCK_STREAM,
 		0);
+	
+	/* Validate the socket before proceeding */
+	if (client->data_sockfd < 0) {
+		client_send_ctrl_msg(client, "425 Cannot open data connection." FTPVITA_EOL);
+		return;
+	}
 
 	DEBUG("PASV data socket fd: %d\n", client->data_sockfd);
 
@@ -220,16 +226,25 @@ static void cmd_PASV_func(ftpvita_client_info_t *client)
 
 static void cmd_PORT_func(ftpvita_client_info_t *client)
 {
-	unsigned int data_ip[4];
-	unsigned int porthi, portlo;
+	int data_ip[4];
+	int porthi, portlo;
 	unsigned short data_port;
 	char ip_str[16];
 	SceNetInAddr data_addr;
 
 	/* Using ints because of newlibc's u8 sscanf bug */
-	sscanf(client->recv_cmd_args, "%d,%d,%d,%d,%d,%d",
-		&data_ip[0], &data_ip[1], &data_ip[2], &data_ip[3],
-		&porthi, &portlo);
+	int n = sscanf(client->recv_cmd_args, "%d,%d,%d,%d,%d,%d",
+        &data_ip[0], &data_ip[1], &data_ip[2], &data_ip[3],
+        &porthi, &portlo);
+
+	/* Make sure that all 6 params are found & are between 0-255 */
+	if (n != 6 ||
+        data_ip[0] < 0 || data_ip[0] > 255 || data_ip[1] < 0 || data_ip[1] > 255 ||
+        data_ip[2] < 0 || data_ip[2] > 255 || data_ip[3] < 0 || data_ip[3] > 255 ||
+        porthi < 0 || porthi > 255 || portlo < 0   || portlo > 255) {
+        client_send_ctrl_msg(client, "501 Syntax error or value out of bounds." FTPVITA_EOL);
+        return;
+    }
 
 	data_port = portlo + porthi*256;
 
@@ -252,6 +267,12 @@ static void cmd_PORT_func(ftpvita_client_info_t *client)
 		SCE_NET_AF_INET,
 		SCE_NET_SOCK_STREAM,
 		0);
+
+	/* Validate the socket before proceeding */
+	if (client->data_sockfd < 0) {
+		client_send_ctrl_msg(client, "425 Cannot open data connection." FTPVITA_EOL);
+		return;
+	}
 
 	DEBUG("Client %i data socket fd: %d\n", client->num,
 		client->data_sockfd);
