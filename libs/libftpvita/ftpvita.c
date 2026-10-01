@@ -525,6 +525,7 @@ static void send_file(ftpvita_client_info_t *client, const char *path)
 
 		buffer = malloc(file_buf_size);
 		if (buffer == NULL) {
+			sceIoClose(fd);
 			client_send_ctrl_msg(client, "550 Could not allocate memory." FTPVITA_EOL);
 			return;
 		}
@@ -552,6 +553,12 @@ static void send_file(ftpvita_client_info_t *client, const char *path)
 static void gen_ftp_fullpath(ftpvita_client_info_t *client, char *path, size_t path_size)
 {
 	char cmd_path[PATH_MAX];
+
+	int n = sscanf(client->recv_cmd_args, "%1023[^\r\n\t]", cmd_path);
+    if (n != 1) {
+        cmd_path[0] = '\0';
+    }
+
 	sscanf(client->recv_cmd_args, "%[^\r\n\t]", cmd_path);
 
 	if (cmd_path[0] == '/') {
@@ -605,6 +612,7 @@ static void receive_file(ftpvita_client_info_t *client, const char *path)
 
 		buffer = malloc(file_buf_size);
 		if (buffer == NULL) {
+			sceIoClose(fd);
 			client_send_ctrl_msg(client, "550 Could not allocate memory." FTPVITA_EOL);
 			return;
 		}
@@ -956,40 +964,37 @@ static void client_list_delete(ftpvita_client_info_t *client)
 
 static void client_list_thread_end()
 {
-	ftpvita_client_info_t *it, *next;
-	SceUID client_thid;
-	const int data_abort_flags = SCE_NET_SOCKET_ABORT_FLAG_RCV_PRESERVATION |
-				SCE_NET_SOCKET_ABORT_FLAG_SND_PRESERVATION;
+    ftpvita_client_info_t *it;
+    SceUID client_thids[128]; // Arbitrary max client limit to hold IDs
+    int thid_count = 0;
+    const int data_abort_flags = SCE_NET_SOCKET_ABORT_FLAG_RCV_PRESERVATION |
+                                 SCE_NET_SOCKET_ABORT_FLAG_SND_PRESERVATION;
 
-	sceKernelLockMutex(client_list_mtx, 1, NULL);
+    sceKernelLockMutex(client_list_mtx, 1, NULL);
 
-	it = client_list;
+    it = client_list;
 
-	/* Iterate over the client list and close their sockets */
-	while (it) {
-		next = it->next;
-		client_thid = it->thid;
+    /* Abort sockets and collect thread IDs */
+    while (it && thid_count < 128) {
+        client_thids[thid_count++] = it->thid;
 
-		/* Abort the client's control socket, only abort
-		 * receiving data so we can still send control messages */
-		sceNetSocketAbort(it->ctrl_sockfd,
-			SCE_NET_SOCKET_ABORT_FLAG_RCV_PRESERVATION);
+        sceNetSocketAbort(it->ctrl_sockfd, SCE_NET_SOCKET_ABORT_FLAG_RCV_PRESERVATION);
 
-		/* If there's an open data connection, abort it */
-		if (it->data_con_type != FTP_DATA_CONNECTION_NONE) {
-			sceNetSocketAbort(it->data_sockfd, data_abort_flags);
-			if (it->data_con_type == FTP_DATA_CONNECTION_PASSIVE) {
-				sceNetSocketAbort(it->pasv_sockfd, data_abort_flags);
-			}
-		}
+        if (it->data_con_type != FTP_DATA_CONNECTION_NONE) {
+            sceNetSocketAbort(it->data_sockfd, data_abort_flags);
+            if (it->data_con_type == FTP_DATA_CONNECTION_PASSIVE) {
+                sceNetSocketAbort(it->pasv_sockfd, data_abort_flags);
+            }
+        }
+        it = it->next;
+    }
 
-		/* Wait until the client threads ends */
-		sceKernelWaitThreadEnd(client_thid, NULL, NULL);
+    sceKernelUnlockMutex(client_list_mtx, 1);
 
-		it = next;
-	}
-
-	sceKernelUnlockMutex(client_list_mtx, 1);
+    /* Wait for threads to end outside the mutex */
+    for (int i = 0; i < thid_count; i++) {
+        sceKernelWaitThreadEnd(client_thids[i], NULL, NULL);
+    }
 }
 
 static int client_thread(SceSize args, void *argp)
