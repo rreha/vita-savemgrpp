@@ -37,11 +37,13 @@ void init_input() {
 void lock_psbutton() {
     sceShellUtilLock(SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN |
                      SCE_SHELL_UTIL_LOCK_TYPE_QUICK_MENU);
+    lock_power = 1;
 }
 
 void unlock_psbutton() {
     sceShellUtilUnlock(SCE_SHELL_UTIL_LOCK_TYPE_PS_BTN |
                        SCE_SHELL_UTIL_LOCK_TYPE_QUICK_MENU);
+    lock_power = 0;
 }
 
 int read_buttons() {

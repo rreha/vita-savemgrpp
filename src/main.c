@@ -6,6 +6,7 @@ static appinfo *cached_info_ptr = NULL;
 static int is_ftp_active = 0;
 static int net_initialized = 0;
 static char ftp_ip_str[32] = "";
+volatile int lock_power = 0;
 int force_cache_refresh = 1;
 int current_accent_idx = 0;
 unsigned int current_accent_color = DEFAULT;
@@ -202,8 +203,12 @@ static void toggle_ftp() {
 // From VitaShell src
 static int power_tick_thread(SceSize args, void *argp) {
     while (1) {
-        if (ftpvita_is_initialized()) {
-            sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_AUTO_SUSPEND);
+        if (ftpvita_is_initialized() || lock_power > 0) {
+            if (lock_power > 0) {
+                sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_OLED_OFF);
+            } else {
+                sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_AUTO_SUSPEND);
+            }
         }
         sceKernelDelayThread(10 * 1000 * 1000);
     }
@@ -1082,6 +1087,8 @@ static int change_save_region(appinfo *info, applist *savelist) {
         return ERROR_INV_TITLEID;
     }
 
+    lock_psbutton();
+
     snprintf(slot_path, sizeof(slot_path), "%s/%s", savemgr_fpath, info->title_id);
     len = count_folders(slot_path);
 
@@ -1121,6 +1128,8 @@ static int change_save_region(appinfo *info, applist *savelist) {
     }
 
     free(new_tid);
+
+    unlock_psbutton();
 
     force_cache_refresh = 1;
     return res;
@@ -1176,9 +1185,13 @@ static int delete_all_slots(applist *savelist) {
 
     max = count_files(savemgr_fpath, 0);
 
+    lock_psbutton();
+
     init_progress(max, "Preparing deletion...");
     res = remove_dir_recursive(savemgr_fpath, incr_progress, &curr, max);
     free_list(savelist);
+
+    unlock_psbutton();
 
     return (res > 0 ? NO_ERROR:ERROR_DELETE_DIR);
 }

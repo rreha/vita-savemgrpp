@@ -6,6 +6,8 @@
 #include <psp2/system_param.h>
 #include <psp2/touch.h>
 
+extern volatile int lock_power;
+
 void init_input();
 void lock_psbutton();
 void unlock_psbutton();
