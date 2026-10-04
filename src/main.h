@@ -2,6 +2,7 @@
 
 #include <psp2/appmgr.h>
 #include <psp2/kernel/processmgr.h>
+#include <psp2/kernel/threadmgr.h>
 #include <psp2/system_param.h>
 #include <psp2/rtc.h>
 #include <psp2/ime_dialog.h>

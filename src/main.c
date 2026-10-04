@@ -199,6 +199,17 @@ static void toggle_ftp() {
     }
 }
 
+// From VitaShell src
+static int power_tick_thread(SceSize args, void *argp) {
+    while (1) {
+        if (ftpvita_is_initialized()) {
+            sceKernelPowerTick(SCE_KERNEL_POWER_TICK_DISABLE_AUTO_SUSPEND);
+        }
+        sceKernelDelayThread(10 * 1000 * 1000);
+    }
+    return 0;
+}
+
 static void draw_tabs() {
     int text_center = vita2d_pgf_text_width(font, 1.1, "SAVES") / 2;
     int text_height = vita2d_pgf_text_height(font, 1.1, "SAVES");
@@ -1676,6 +1687,9 @@ static int init_devices(char **error) {
 }
 
 int main() {
+    SceUID thid = sceKernelCreateThread("power_tick_thread", power_tick_thread, 0x10000100, 0x4000, 0, 0, NULL);
+    if (thid >= 0) sceKernelStartThread(thid, 0, NULL);
+
     char *error = NULL;
 
     vita2d_init();
