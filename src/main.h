@@ -14,6 +14,7 @@
 #include <strings.h>
 
 #include "utils.h"
+#include "save_override.h"
 #include "font.h"
 #include "input.h"
 #include "pfs.h"

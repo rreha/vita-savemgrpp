@@ -86,6 +86,7 @@ add_executable(${PROJECT_NAME}
     src/pfs.c
     src/vita_sqlite.c
     src/ime_dialog.c
+    src/save_override.c
 )
 
 add_dependencies(${PROJECT_NAME} vitashell_user_stubs build_ftpvita)

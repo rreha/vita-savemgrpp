@@ -15,6 +15,15 @@ int current_sort_mode = 0;
 int select_sort_menu = 0;
 
 static char *save_dir_path(const appinfo *info) {
+    const char *hb = sovr_dir(info->title_id);
+
+    if (hb) {
+        size_t len = strlen(hb) + 1;
+        char *p = malloc(len);
+        if (p) memcpy(p, hb, len);
+        return p;
+    }
+
     size_t len = sizeof(char) * 40;
     char *path = malloc(len);
 
@@ -57,6 +66,7 @@ static char *slot_sfo_path(const appinfo *info, int slot) {
 }
 
 static char *save_dir_path_enc(const appinfo *info) {
+    if (is_sovr(info->title_id)) return NULL;
     size_t len = sizeof(char) * 40;
     char *path = malloc(len);
 
@@ -118,6 +128,7 @@ static void sort_applist(applist *list) {
 }
 
 static int is_save_decrypted(const appinfo *info, int slot) {
+    if (is_sovr(info->title_id)) return 1;
     char path[70] = {0};
     snprintf(path, sizeof(path), "%s/%s/SLOT%d/sce_pfs", savemgr_fpath, info->title_id, slot);
     if (path_exists(path)) return 0;
@@ -377,13 +388,33 @@ static void refresh_info_cache(appinfo *info) {
             sceRtcSetTick(&time, &tick_local);
 
             int isDec = is_save_decrypted(info, i);
+            const char *tag = is_sovr(info->title_id) ? "HB" : (isDec == -1 ? "UNK" : (isDec == 0 ? "ENC" : "DEC"));
             snprintf(slot_cache[i], 64, "%02d-%02d-%04d %02d:%02d:%02d [%s]",
-                     time.month, time.day, time.year, time.hour, time.minute, time.second,
-                     (isDec == -1 ? "UNK":(isDec == 0 ? "ENC":"DEC")));
+                    time.month, time.day, time.year, time.hour, time.minute, time.second,
+                    tag);
         } 
-        
+                
         else {
-            snprintf(slot_cache[i], 64, "Empty");
+            char slotdir[80];
+            snprintf(slotdir, sizeof(slotdir),
+                     "%s/%s/SLOT%d", savemgr_fpath, info->title_id, i);
+
+            if (path_exists(slotdir)) {
+                SceIoStat st = {0};
+                sceIoGetstat(slotdir, &st);
+                SceRtcTick tu, tl;
+                SceDateTime tm;
+                sceRtcGetTick(&st.st_mtime, &tu);
+                sceRtcConvertUtcToLocalTime(&tu, &tl);
+                sceRtcSetTick(&tm, &tl);
+                snprintf(slot_cache[i], 64,
+                    "%02d-%02d-%04d %02d:%02d:%02d [%s]",
+                    tm.month, tm.day, tm.year,
+                    tm.hour, tm.minute, tm.second,
+                    is_sovr(info->title_id) ? "HB" : "DEC");
+            } else {
+                snprintf(slot_cache[i], 64, "Empty");
+            }
         }
         if (fn) free(fn);
     }
@@ -876,7 +907,7 @@ static int copy_savedata_to_slot(appinfo *info, int slot, applist *savelist) {
 
     lock_psbutton();
 
-    if (info->is_decrypted && pfs_mount(src) < 0) {
+    if (info->is_decrypted && !sovr_skip_pfs(info->title_id) && pfs_mount(src) < 0) {
         res = ERROR_DECRYPT_DIR;
         goto exit;
     }
@@ -890,10 +921,10 @@ static int copy_savedata_to_slot(appinfo *info, int slot, applist *savelist) {
     if (!path_exists(icn))
         copy_file(info->iconpath, icn, 0);
 
-    max = count_files(src, info->is_decrypted);
+    max = sovr_count_files(info->title_id, src, info->is_decrypted);
     init_progress(max, "Preparing backup...");
 
-    if (!copy_dir_recursive(src, dest, incr_progress, &curr, max, info->is_decrypted)) {
+    if (!sovr_copy_dir(info->title_id, src, dest, incr_progress, &curr, max, info->is_decrypted)) {
         res = ERROR_COPY_DIR;
         goto exit;
     }
@@ -901,7 +932,7 @@ static int copy_savedata_to_slot(appinfo *info, int slot, applist *savelist) {
     update_list(savelist, 0, info->title_id);
 
 exit:
-    if (info->is_decrypted)
+    if (info->is_decrypted && !sovr_skip_pfs(info->title_id))
         pfs_unmount();
 
     unlock_psbutton();
@@ -948,7 +979,7 @@ static int copy_slot_to_savedata(appinfo *info, int slot, applist *savelist) {
         }
     }
 
-    if (info->is_decrypted && pfs_mount(dest) < 0) {
+    if (info->is_decrypted && !sovr_skip_pfs(info->title_id) && pfs_mount(src) < 0) {
         res = ERROR_DECRYPT_DIR;
         goto exit;
 
@@ -972,14 +1003,14 @@ static int copy_slot_to_savedata(appinfo *info, int slot, applist *savelist) {
         }
     }
 
-    max = count_files(src, info->is_decrypted);
+    max = sovr_count_files(info->title_id, src, info->is_decrypted);
 
     if (!info->is_decrypted && path_exists(dest)) remove_dir_recursive(dest, NULL, NULL, 0);
 
     create_dir(dest, 0777);
     init_progress(max, "Preparing backup...");
 
-    if (!copy_dir_recursive(src, dest, incr_progress, &curr, max, info->is_decrypted)) {
+    if (!sovr_copy_dir(info->title_id, src, dest, incr_progress, &curr, max, info->is_decrypted)) {
         res = ERROR_COPY_DIR;
         goto exit;
     }
@@ -995,7 +1026,7 @@ static int copy_slot_to_savedata(appinfo *info, int slot, applist *savelist) {
     }
 
 exit:
-    if (info->is_decrypted)
+    if (info->is_decrypted && !sovr_skip_pfs(info->title_id))
         pfs_unmount();
 
     unlock_psbutton();
@@ -1056,7 +1087,8 @@ static int format_savedata(appinfo *info, applist *list) {
 
     max = count_files(target, 0);
     init_progress(max, "Formatting...");
-    remove_dir_recursive(target, incr_progress, &curr, max);
+    if (!sovr_format_dir(info->title_id, target))
+        remove_dir_recursive(target, incr_progress, &curr, max);
 
     if (!info->is_installed) {
         update_list(list, 1, info->title_id);
@@ -1071,6 +1103,7 @@ exit:
 }
 
 static int change_save_region(appinfo *info, applist *savelist) {
+    if (is_sovr(info->title_id)) return ERROR_INV_TITLEID;
     int res = NO_ERROR;
     char *new_tid = NULL;
     char slot_path[47] = {0};
@@ -1378,8 +1411,10 @@ static ScreenState slot_state_machine(applist *list, applist *savelist,
             new_state = confirm(tmp, 1.0, 0) == CONFIRM ? progress_state:start_state;
 
             if (new_state == progress_state && start_state == BACKUP_MODE) {
-                list->choose->is_decrypted = confirm("Do you want to decrypt the save?", 1.0, 1);
-
+                if (is_sovr(list->choose->title_id))
+                    list->choose->is_decrypted = 1;
+                else
+                    list->choose->is_decrypted = confirm("Do you want to decrypt the save?", 1.0, 1);
             } else if (new_state == progress_state && start_state == RESTORE_MODE) {
                 list->choose->is_decrypted = is_save_decrypted(list->choose, slot);
 
@@ -1396,7 +1431,7 @@ static ScreenState slot_state_machine(applist *list, applist *savelist,
         } 
         
         else if (state == progress_state) {
-            int oldSavelistC = savelist->count;
+            int oldSavelistC = savelist ? savelist->count : 0;
             draw_screen(state, list, slot);
             draw_screen(state, list, slot);
 
@@ -1591,7 +1626,7 @@ static int mainloop() {
                                                 copy_savedata_to_slot);
                 break;
             case RESTORE_MODE:
-                new_state = slot_state_machine(list, NULL,
+                new_state = slot_state_machine(list, &savelist,
                                                 RESTORE_MODE, RESTORE_CONFIRM,
                                                 RESTORE_PROGRESS, RESTORE_FAIL,
                                                 "Restore savedata from slot %d?",

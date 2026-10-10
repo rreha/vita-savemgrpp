@@ -1,7 +1,8 @@
 #include <stdint.h>
 
-#include "sqlite3.h"
 #include "utils.h"
+#include "save_override.h"
+#include "sqlite3.h"
 
 char savemgr_fpath[128] = {0};
 
@@ -146,6 +147,7 @@ int get_applist(applist *list) {
     sqlite3_close(db);
 
     get_orphan_saves(list);
+    sovr_register_all(list);
 
     if (list->count < 1)
         return -3;
@@ -187,7 +189,10 @@ int get_savelist(applist *savelist) {
         snprintf(iconPath, sizeof(iconPath), "%s/%s/icon.png", savemgr_fpath, dir.d_name);
         snprintf(saveinfo->iconpath, sizeof(saveinfo->iconpath), "%s", iconPath);
 
-        setRegionLabel(saveinfo->title_id[3], saveinfo);
+        if (is_sovr(saveinfo->title_id))
+            snprintf(saveinfo->region, sizeof(saveinfo->region), "HB");
+        else
+            setRegionLabel(saveinfo->title_id[3], saveinfo);
     } while (res > 0);
 
     sceIoDclose(dfd);
@@ -228,7 +233,10 @@ int update_list(applist *list, int cmd, const char *titleID) {
             snprintf(iconPath, sizeof(iconPath), "%s/%s/icon.png", savemgr_fpath, titleID);
             snprintf(info->iconpath, sizeof(info->iconpath), "%s", iconPath);
 
-            setRegionLabel(info->title_id[3], info);
+            if (is_sovr(info->title_id))
+                snprintf(info->region, sizeof(info->region), "HB");
+            else
+                setRegionLabel(info->title_id[3], info);
         }
             break;
         case 1: { // Delete item
