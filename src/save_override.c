@@ -11,9 +11,16 @@ typedef struct {
 } override_entry;
 
 static const override_entry SOVR_APPS[] = {
-    {"GTASA0000", "GTA: San Andreas", "ux0:data/gtasa", "GTASA"},
+    {"ACGC00001", "Animal Crossing", "ux0:data/AnimalCrossing/saves", NULL},
+    {"GTA000003", "GTA III", "ux0:data/gta3", "GTA3sf"},
+    {"GTASA0000", "GTA: San Andreas", "ux0:data/gtasa", "GTASAsf"},
+    {"GTAVICECT", "GTA: Vice City", "ux0:data/gtavc", "GTAVCsf"},
+    {"MH3WII001", "Monster Hunter Tri", "ux0:data/mh3-wii/saves", NULL},
+    {"NZZMBSPTB", "Nazi Zombies: Portable", "ux0:data/nzp/nzp", "config"},
+    {"PSVRGP001", "Riptide GP", "ux0:data/riptidegp/files/", "profile"}, 
     {"THUG00001", "Tony Hawk's Underground", "ux0:data/thug/save", NULL},
-    {NULL, NULL, NULL, NULL}};
+    {NULL, NULL, NULL, NULL}
+};
 
 static const override_entry *override_find(const char *id) {
     if (!id) return NULL;

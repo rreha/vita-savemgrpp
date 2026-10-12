@@ -1,3 +1,8 @@
+## 5.1.0
+- Improve the FTP feature
+- Improve main menu
+- Fix the IME dialog bug
+
 ## 5.0.0
 - Add FTP support
 - Add sorting
