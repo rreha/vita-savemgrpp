@@ -16,13 +16,13 @@ See [CHANGELOG.md](CHANGELOG.md).
 - Bulk delete of all your backups
 - Restore encrypted and decrypted saves
 - Change savefile region
-- Select your prefered device to use as the backup device (`ux0:`, `ur0:`, `uma0:`, `imc0` or `xmc0:`)
+- Select your prefered device to use as the backup device (`ux0:`, `ur0:`, `uma0:`, `imc0:` or `xmc0:`)
 - Toggle FTP and transfer saves
 - Customize UI (choose between Dark/Light Mode, and pick from different accent colors)
 
 ## Controls
 Left Analog / D-Pad / Touch : Select<br>
-L / R : Switch Tabs (SAVES / BACKUPS)<br>
+L / R : Switch Tabs (GAMES / BACKUPS)<br>
 SELECT : Toggle FTP<br>
 ╳ / ◯ / Touch : Confirm<br>
 □ : Sort<br>
@@ -62,6 +62,7 @@ make
 This project is licensed under [GPLv3](LICENSE).
 
 ## Credits
+- [libvita2d by xerpi](https://github.com/xerpi/libvita2d)
 - [VitaShell by TheFloW](https://github.com/TheOfficialFloW/VitaShell)<br>
 - [rinCheat by Rinnegatamante](https://github.com/Rinnegatamante/rinCheat)<br>
 - [Vita Save Manager by d3m3vilurr](https://github.com/d3m3vilurr/vita-savemgr)<br>
