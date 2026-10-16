@@ -1,3 +1,7 @@
+## 5.2.0
+- Add support for homebrew apps & Adrenaline
+- Disable auto suspend on crucial I/O operations and FTP
+
 ## 5.1.0
 - Improve the FTP feature
 - Improve main menu
