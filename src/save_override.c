@@ -17,6 +17,7 @@ static const override_entry SOVR_APPS[] = {
     {"GTAVICECT", "GTA: Vice City", "ux0:data/gtavc", "GTAVCsf"},
     {"MH3WII001", "Monster Hunter Tri", "ux0:data/mh3-wii/saves", NULL},
     {"NZZMBSPTB", "Nazi Zombies: Portable", "ux0:data/nzp/nzp", "config"},
+    {"PSPEMUCFW", "Adrenaline", "ux0:pspemu/PSP/SAVEDATA/", "profile"}, 
     {"PSVRGP001", "Riptide GP", "ux0:data/riptidegp/files/", "profile"}, 
     {"THUG00001", "Tony Hawk's Underground", "ux0:data/thug/save", NULL},
     {NULL, NULL, NULL, NULL}
@@ -139,34 +140,61 @@ int sovr_format_dir(const char *title_id, const char *dir) {
     return 1;
 }
 
+static void sovr_add_entry(struct applist *list,
+                           const override_entry *e,
+                           int is_installed)
+{
+    appinfo *tmp = list->items;
+    while (tmp && strcmp(tmp->title_id, e->title_id) != 0) tmp = tmp->next;
+    if (tmp) return;
+
+    appinfo *info = calloc(1, sizeof(appinfo));
+    if (!info) return;
+
+    info->is_installed = is_installed;
+    snprintf(info->title_id, sizeof(info->title_id), "%s", e->title_id);
+    snprintf(info->real_id,  sizeof(info->real_id),  "%s", e->title_id);
+    snprintf(info->title,    sizeof(info->title),    "%s", e->name);
+    snprintf(info->region,   sizeof(info->region),   "%s", "HB");
+    snprintf(info->iconpath, sizeof(info->iconpath),
+             "ux0:app/%s/sce_sys/icon0.png", e->title_id);
+
+    if (list->count == 0) {
+        list->items = list->tail = info;
+    } else {
+        list->tail->next = info;
+        info->prev = list->tail;
+        list->tail = info;
+    }
+    ++list->count;
+}
+
 void sovr_register_all(struct applist *list) {
     for (int i = 0; SOVR_APPS[i].title_id; ++i) {
         const override_entry *e = &SOVR_APPS[i];
+        char app_path[64];
 
         if (!path_exists((char *)e->save_dir))
             continue;
 
-        appinfo *tmp = list->items;
-        while (tmp && strcmp(tmp->title_id, e->title_id) != 0) tmp = tmp->next;
-        if (tmp) continue;
+        snprintf(app_path, sizeof(app_path), "ux0:app/%s", e->title_id);
+        if (!path_exists(app_path))
+            continue;
 
-        appinfo *info = calloc(1, sizeof(appinfo));
-        if (!info) return;
+        sovr_add_entry(list, e, 1);
+    }
 
-        info->is_installed = 1;
-        snprintf(info->title_id, sizeof(info->title_id), "%s", e->title_id);
-        snprintf(info->real_id,  sizeof(info->real_id),  "%s", e->title_id);
-        snprintf(info->title,    sizeof(info->title),    "%s", e->name);
-        snprintf(info->region, sizeof(info->region), "%s", "HB");
-        snprintf(info->iconpath, sizeof(info->iconpath), "ux0:app/%s/sce_sys/icon0.png", e->title_id);
+    for (int i = 0; SOVR_APPS[i].title_id; ++i) {
+        const override_entry *e = &SOVR_APPS[i];
+        char app_path[64];
 
-        if (list->count == 0) {
-            list->items = list->tail = info;
-        } else {
-            list->tail->next = info;
-            info->prev = list->tail;
-            list->tail = info;
-        }
-        ++list->count;
+        if (!path_exists((char *)e->save_dir))
+            continue;
+
+        snprintf(app_path, sizeof(app_path), "ux0:app/%s", e->title_id);
+        if (path_exists(app_path))
+            continue;
+
+        sovr_add_entry(list, e, 0);
     }
 }
