@@ -17,9 +17,13 @@ static const override_entry SOVR_APPS[] = {
     {"GTAVICECT", "GTA: Vice City", "ux0:data/gtavc", "GTAVCsf"},
     {"MH3WII001", "Monster Hunter Tri", "ux0:data/mh3-wii/saves", NULL},
     {"NZZMBSPTB", "Nazi Zombies: Portable", "ux0:data/nzp/nzp", "config"},
-    {"PSPEMUCFW", "Adrenaline", "ux0:pspemu/PSP/SAVEDATA/", "profile"}, 
+    {"PSPEMUCFW", "Adrenaline", "ux0:pspemu/PSP/SAVEDATA/", NULL}, 
     {"PSVRGP001", "Riptide GP", "ux0:data/riptidegp/files/", "profile"}, 
+    {"RESI00001", "Resident Evil 1", "ux0:data/RE1/SAVE/", NULL},
+    {"SHPC00001", "Silent Hill", "ux0:data/silenthill/gamedata/save/", NULL},
+    {"SSXV00001", "SSX (2012)", "ux0:data/ssx/files/", NULL},
     {"THUG00001", "Tony Hawk's Underground", "ux0:data/thug/save", NULL},
+    {"TSUKI0001", "Tsukihime Vita", "ux0:data/tsukihime/save", "save"},
     {NULL, NULL, NULL, NULL}
 };
 
