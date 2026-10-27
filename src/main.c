@@ -879,12 +879,12 @@ static ScreenState on_menuopen_event() {
         set_save_device(save_dev_idx + 1);
         ret = SWITCH_SAVE_DEVICE;
 
-    } else if (select_menu == SVMGR_DEVICE && (btn & SCE_CTRL_RIGHT) && select_device+1 < device_num) {
+    } else if (select_menu == SVMGR_DEVICE && (btn & SCE_CTRL_LEFT) && select_device > 0) {
         snprintf(savemgr_fpath, sizeof(char)*26, "%s%s", devices[--select_device], SAVEMGR_FOLDER);
         snprintf(cur_device, sizeof(char)*5, "%s", devices[select_device]);
         ret = SWITCH_CURR_DEVICE;
 
-    } else if (!select_menu && (btn & SCE_CTRL_RIGHT) && select_device+1 < device_num) {
+    } else if (select_menu == SVMGR_DEVICE && (btn & SCE_CTRL_RIGHT) && select_device+1 < device_num) {
         snprintf(savemgr_fpath, sizeof(char)*26, "%s%s", devices[++select_device], SAVEMGR_FOLDER);
         snprintf(cur_device, sizeof(char)*5, "%s", devices[select_device]);
         ret = SWITCH_CURR_DEVICE;
