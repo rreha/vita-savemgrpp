@@ -49,6 +49,8 @@ int refreshUI = 0;
 int savelist_tab = 0;
 int old_savelist_tab = 0;
 int select_menu = 0;
+int save_dev_idx = 0;
+char save_dev_label[8] = "ux0";
 int select_device = 0;
 int device_num = 0;
 
@@ -91,11 +93,13 @@ typedef enum {
     DELETE_ALL_SLOTS_PROGRESS,
     DELETE_ALL_SLOTS_FAIL,
     SWITCH_CURR_DEVICE,
+    SWITCH_SAVE_DEVICE,
 } ScreenState;
 
 typedef enum {
-    SVMGR_DEVICE = 0,
-    BACKUP_ALL = 1,
+    SAVE_DEVICE = 0,
+    SVMGR_DEVICE = 1,
+    BACKUP_ALL,
     BACKUP_ALL_ENC,
     DELETE_ALL_SLOTS,
     ACCENT_COLOR,

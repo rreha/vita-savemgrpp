@@ -14,6 +14,19 @@ int is_dark_mode = 0;
 int current_sort_mode = 0;
 int select_sort_menu = 0;
 
+static void set_save_device(int idx) {
+    if (idx < 0 || idx > device_num) idx = 0;
+    save_dev_idx = idx;
+
+    if (idx == 0) {
+        snprintf(save_root, sizeof(save_root), "ux0:user/00/savedata");
+        snprintf(save_dev_label, sizeof(save_dev_label), "Auto");
+    } else {
+        snprintf(save_root, sizeof(save_root), "%s:user/00/savedata", devices[idx - 1]);
+        snprintf(save_dev_label, sizeof(save_dev_label), "%s", devices[idx - 1]);
+    }
+}
+
 static char *save_dir_path(const appinfo *info) {
     const char *hb = sovr_dir(info->title_id);
 
@@ -28,6 +41,13 @@ static char *save_dir_path(const appinfo *info) {
     char *path = malloc(len);
 
     if (path == NULL) return NULL;
+
+    if (save_dev_idx > 0) {
+        snprintf(path, len, "%s/%s", save_root, info->real_id);
+        if (path_exists(path)) return path;
+        free(path);
+        return NULL;
+    }
 
     snprintf(path, len, "grw0:savedata/%s", info->real_id);
     if (path_exists(path)) return path;
@@ -71,6 +91,12 @@ static char *save_dir_path_enc(const appinfo *info) {
     char *path = malloc(len);
 
     if (path == NULL) return NULL;
+
+    if (save_dev_idx > 0) {
+        if (!path_exists(save_root)) { free(path); return NULL; }
+        snprintf(path, len, "%s/%s", save_root, info->real_id);
+        return path;
+    }
 
     snprintf(path, len, "gro0:app/%s", info->real_id);
     if (path_exists(path)) {
@@ -144,6 +170,7 @@ static void save_config() {
         sceIoWrite(fd, &select_device, sizeof(int));
         sceIoWrite(fd, &is_dark_mode, sizeof(int));
         sceIoWrite(fd, &current_sort_mode, sizeof(int));
+        sceIoWrite(fd, &save_dev_idx, sizeof(int));
         sceIoClose(fd);
     }
 }
@@ -155,27 +182,32 @@ static void load_config() {
     if (fd >= 0) {
         int saved_sort = 0;
         int saved_accent = 0;
-        int saved_device = 0;
+        int saved_bak_device = 0;
+        int saved_save_device = 0;
+
         sceIoRead(fd, &saved_accent, sizeof(int));
-        sceIoRead(fd, &saved_device, sizeof(int));
+        sceIoRead(fd, &saved_bak_device, sizeof(int));
         sceIoRead(fd, &is_dark_mode, sizeof(int));
         
         if (sceIoRead(fd, &saved_sort, sizeof(int)) == sizeof(int)) {
             if (saved_sort >= 0 && saved_sort <= 3) current_sort_mode = saved_sort; 
         }
 
-        sceIoClose(fd);
-
         if (saved_accent >= 0 && saved_accent < num_accent_colors) {
             current_accent_idx = saved_accent;
             current_accent_color = accent_colors[current_accent_idx];
         }
         
-        if (saved_device >= 0 && saved_device < device_num) {
-            select_device = saved_device;
+        if (saved_bak_device >= 0 && saved_bak_device < device_num) {
+            select_device = saved_bak_device;
             snprintf(cur_device, 5, "%s", devices[select_device]);
             snprintf(savemgr_fpath, 26, "%s%s", devices[select_device], SAVEMGR_FOLDER);
         }
+
+        if (sceIoRead(fd, &saved_save_device, sizeof(int)) == sizeof(int))
+            set_save_device(saved_save_device);
+
+        sceIoClose(fd);
     }
 }
 
@@ -260,31 +292,45 @@ static void draw_menu() {
     
     char val_str[64] = {0};
     unsigned int color;
-    color = (select_menu == SVMGR_DEVICE ? THEME_TEXT : THEME_TEXT_MUTED);
+    int val_w;
 
     vita2d_draw_rectangle(menuX-5, menuY-5, menuW+10, menuH+10, current_accent_color);
     vita2d_draw_rectangle(menuX, menuY, menuW, menuH, is_dark_mode ? COLOR_DARK_BG : COLOR_LIGHT_BG);
+
+    color = (select_menu == SAVE_DEVICE ? THEME_TEXT : THEME_TEXT_MUTED);
+    vita2d_pgf_draw_text(font, textX, textY, color, 1.2, "Save Device");
+    snprintf(val_str, sizeof(val_str), "< %s >", save_dev_label);
+    val_w = vita2d_pgf_text_width(font, 1.2, val_str);
+    vita2d_pgf_draw_text(font, rightX - val_w, textY, color, 1.2, val_str);
+    textY += fontH;
+
+    color = (select_menu == SVMGR_DEVICE ? THEME_TEXT : THEME_TEXT_MUTED);
     vita2d_pgf_draw_text(font, textX, textY, color, 1.2, "Backup Device");
     snprintf(val_str, sizeof(val_str), "< %s >", cur_device);
-    int val_w = vita2d_pgf_text_width(font, 1.2, val_str);
+    val_w = vita2d_pgf_text_width(font, 1.2, val_str);
     vita2d_pgf_draw_text(font, rightX - val_w, textY, color, 1.2, val_str);
     textY += 20;
     vita2d_draw_line(textX, textY, rightX, textY, THEME_TEXT_MUTED);
+
     textY += fontH + 5;
     color = (select_menu == BACKUP_ALL ? THEME_TEXT : THEME_TEXT_MUTED);
     vita2d_pgf_draw_text(font, textX, textY, color, 1.2, "Backup All Saves (Decrypted)");
+
     textY += fontH;
     color = (select_menu == BACKUP_ALL_ENC ? THEME_TEXT : THEME_TEXT_MUTED);
     vita2d_pgf_draw_text(font, textX, textY, color, 1.2, "Backup All Saves (Encrypted)");
+
     textY += fontH;
     color = (select_menu == DELETE_ALL_SLOTS ? THEME_TEXT : THEME_TEXT_MUTED);
     vita2d_pgf_draw_text(font, textX, textY, color, 1.2, "Delete All Saves Slots");
+
     textY += fontH;
     color = (select_menu == ACCENT_COLOR ? THEME_TEXT : THEME_TEXT_MUTED);
     vita2d_pgf_draw_text(font, textX, textY, color, 1.2, "Accent Color");
     snprintf(val_str, sizeof(val_str), "< %s >", accent_color_names[current_accent_idx]);
     val_w = vita2d_pgf_text_width(font, 1.2, val_str);
     vita2d_pgf_draw_text(font, rightX - val_w, textY, color, 1.2, val_str);
+    
     textY += fontH;
     color = (select_menu == DARK_MODE ? THEME_TEXT : THEME_TEXT_MUTED);
     vita2d_pgf_draw_text(font, textX, textY, color, 1.2, "Dark Mode");
@@ -825,7 +871,15 @@ static ScreenState on_menuopen_event() {
     } else if (btn & SCE_CTRL_DOWN) {
         select_menu = select_menu+1 == MENU_ITEMS ? select_menu:select_menu+1;
 
-    } else if (!select_menu && (btn & SCE_CTRL_LEFT) && select_device > 0) {
+    } else if (select_menu == SAVE_DEVICE && (btn & SCE_CTRL_LEFT) && save_dev_idx > 0) {
+        set_save_device(save_dev_idx - 1);
+        ret = SWITCH_SAVE_DEVICE;
+
+    } else if (select_menu == SAVE_DEVICE && (btn & SCE_CTRL_RIGHT) && save_dev_idx < device_num) {
+        set_save_device(save_dev_idx + 1);
+        ret = SWITCH_SAVE_DEVICE;
+
+    } else if (select_menu == SVMGR_DEVICE && (btn & SCE_CTRL_RIGHT) && select_device+1 < device_num) {
         snprintf(savemgr_fpath, sizeof(char)*26, "%s%s", devices[--select_device], SAVEMGR_FOLDER);
         snprintf(cur_device, sizeof(char)*5, "%s", devices[select_device]);
         ret = SWITCH_CURR_DEVICE;
@@ -971,10 +1025,10 @@ static int copy_slot_to_savedata(appinfo *info, int slot, applist *savelist) {
 
             if (!dest) { // if we are here, we said yes
                 forceRestore = 1;
-                allocLen = sizeof(char) * 40;
+                allocLen = sizeof(char) * 64;
                 dest = malloc(allocLen);
-
-                snprintf(dest, allocLen, "ux0:user/00/savedata/%s", info->title_id);
+                
+                snprintf(dest, allocLen, "%s/%s", save_root, info->title_id);
             }
         }
     }
@@ -1576,6 +1630,23 @@ static ScreenState switch_device(applist *savelist) {
     return MENU_OPEN;
 }
 
+static ScreenState switch_save_device(applist *gamelist) {
+    init_progress(1, "Scanning saves...");
+
+    free_list(gamelist);
+    get_applist(gamelist);
+    sort_applist(gamelist);
+
+    /* sort_applist() returns early for <2 items, so set these explicitly */
+    gamelist->curr = gamelist->choose = gamelist->items;
+
+    cached_info_ptr = NULL;
+    force_cache_refresh = 1;
+    refreshUI = 1;
+
+    return MENU_OPEN;
+}
+
 static int mainloop() {
     ScreenState state = MAIN_SCREEN;
     applist gamelist = {0}, savelist = {0};
@@ -1679,6 +1750,9 @@ static int mainloop() {
                 break;
             case SWITCH_CURR_DEVICE:
                 new_state = switch_device(&savelist);
+                break;
+            case SWITCH_SAVE_DEVICE:
+                new_state = switch_save_device(&gamelist);
                 break;
             default:
                 break;

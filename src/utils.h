@@ -31,6 +31,9 @@ typedef struct applist {
 } applist;
 
 extern char savemgr_fpath[128];
+extern char save_root[32];
+extern int  save_dev_idx;
+extern char save_dev_label[8];
 
 void setRegionLabel(char regionID, appinfo *info);
 int get_applist(applist *list);

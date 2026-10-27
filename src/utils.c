@@ -5,6 +5,7 @@
 #include "sqlite3.h"
 
 char savemgr_fpath[128] = {0};
+char save_root[32] = "ux0:user/00/savedata";
 
 void setRegionLabel(char regionID, appinfo *info) {
     switch (regionID) {
@@ -29,8 +30,21 @@ void setRegionLabel(char regionID, appinfo *info) {
     }
 }
 
+static void orphan_find_icon(appinfo *info) {
+    static const char *devs[] = {"ux0", "uma0", "imc0", "xmc0", "gro0"};
+    char path[64];
+
+    for (int i = 0; i < 5; ++i) {
+        snprintf(path, sizeof(path), "%s:app/%s/sce_sys/icon0.png", devs[i], info->real_id);
+        if (path_exists(path)) {
+            snprintf(info->iconpath, sizeof(info->iconpath), "%s", path);
+            return;
+        }
+    }
+}
+
 static void get_orphan_saves(applist *list) {
-    SceUID dfd = sceIoDopen("ux0:user/00/savedata");
+    SceUID dfd = sceIoDopen(save_root);
     int res = 0;
 
     if (dfd < 0) return;
@@ -57,22 +71,29 @@ static void get_orphan_saves(applist *list) {
 
             if (!tmp) {
                 appinfo *info = calloc(1, sizeof(appinfo));
+                if (!info) break;
 
                 info->is_installed = 0;
-                strncpy(info->title_id, dir.d_name, sizeof(info->title_id));
-                strncpy(info->real_id, dir.d_name, sizeof(info->real_id));
+                snprintf(info->title_id, sizeof(info->title_id), "%s", dir.d_name);
+                snprintf(info->real_id,  sizeof(info->real_id),  "%s", dir.d_name);
+                snprintf(info->title,    sizeof(info->title),    "%s", dir.d_name);
                 setRegionLabel(dir.d_name[3], info);
+                orphan_find_icon(info);
 
-                list->tail->next = info;
-                info->prev = list->tail;
-                list->tail = info;
+                if (list->count == 0) {
+                    list->items = list->tail = info;
+                } else {
+                    list->tail->next = info;
+                    info->prev = list->tail;
+                    list->tail = info;
+                }
 
                 ++list->count;
             }
         }
     } while (res > 0);
 
-	sceIoDclose(dfd);
+    sceIoDclose(dfd);
 }
 
 static int get_applist_callback(void *data, int argc, char **argv, char **cols) {
