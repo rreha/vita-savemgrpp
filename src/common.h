@@ -25,7 +25,7 @@
 #define ICONS_ROW                   4
 #define ICONS_COL                   7
 
-#define MENU_ITEMS                  6
+#define MENU_ITEMS                  7
 
 #define ITEMS_PANEL_PADDING         5
 #define ITEMS_PANEL_WIDTH           (SCREEN_WIDTH)

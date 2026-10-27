@@ -188,26 +188,26 @@ static void load_config() {
         sceIoRead(fd, &saved_accent, sizeof(int));
         sceIoRead(fd, &saved_bak_device, sizeof(int));
         sceIoRead(fd, &is_dark_mode, sizeof(int));
-        
-        if (sceIoRead(fd, &saved_sort, sizeof(int)) == sizeof(int)) {
-            if (saved_sort >= 0 && saved_sort <= 3) current_sort_mode = saved_sort; 
-        }
 
-        if (saved_accent >= 0 && saved_accent < num_accent_colors) {
-            current_accent_idx = saved_accent;
-            current_accent_color = accent_colors[current_accent_idx];
-        }
-        
-        if (saved_bak_device >= 0 && saved_bak_device < device_num) {
-            select_device = saved_bak_device;
-            snprintf(cur_device, 5, "%s", devices[select_device]);
-            snprintf(savemgr_fpath, 26, "%s%s", devices[select_device], SAVEMGR_FOLDER);
+        if (sceIoRead(fd, &saved_sort, sizeof(int)) == sizeof(int)) {
+            if (saved_sort >= 0 && saved_sort <= 3) current_sort_mode = saved_sort;
         }
 
         if (sceIoRead(fd, &saved_save_device, sizeof(int)) == sizeof(int))
             set_save_device(saved_save_device);
 
         sceIoClose(fd);
+
+        if (saved_accent >= 0 && saved_accent < num_accent_colors) {
+            current_accent_idx = saved_accent;
+            current_accent_color = accent_colors[current_accent_idx];
+        }
+
+        if (saved_bak_device >= 0 && saved_bak_device < device_num) {
+            select_device = saved_bak_device;
+            snprintf(cur_device, 5, "%s", devices[select_device]);
+            snprintf(savemgr_fpath, 26, "%s%s", devices[select_device], SAVEMGR_FOLDER);
+        }
     }
 }
 
