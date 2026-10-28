@@ -15,16 +15,11 @@ int current_sort_mode = 0;
 int select_sort_menu = 0;
 
 static void set_save_device(int idx) {
-    if (idx < 0 || idx > device_num) idx = 0;
+    if (idx < 0 || idx >= device_num) idx = 0;
     save_dev_idx = idx;
 
-    if (idx == 0) {
-        snprintf(save_root, sizeof(save_root), "ux0:user/00/savedata");
-        snprintf(save_dev_label, sizeof(save_dev_label), "Auto");
-    } else {
-        snprintf(save_root, sizeof(save_root), "%s:user/00/savedata", devices[idx - 1]);
-        snprintf(save_dev_label, sizeof(save_dev_label), "%s", devices[idx - 1]);
-    }
+    snprintf(save_root, sizeof(save_root), "%s:user/00/savedata", devices[idx]);
+    snprintf(save_dev_label, sizeof(save_dev_label), "%s", devices[idx]);
 }
 
 static char *save_dir_path(const appinfo *info) {
@@ -37,26 +32,15 @@ static char *save_dir_path(const appinfo *info) {
         return p;
     }
 
-    size_t len = sizeof(char) * 40;
+    size_t len = 64;
     char *path = malloc(len);
 
     if (path == NULL) return NULL;
 
-    if (save_dev_idx > 0) {
-        snprintf(path, len, "%s/%s", save_root, info->real_id);
-        if (path_exists(path)) return path;
-        free(path);
-        return NULL;
-    }
-
-    snprintf(path, len, "grw0:savedata/%s", info->real_id);
-    if (path_exists(path)) return path;
-
-    snprintf(path, len, "ux0:user/00/savedata/%s", info->real_id);
+    snprintf(path, len, "%s/%s", save_root, info->real_id);
     if (path_exists(path)) return path;
 
     free(path);
-
     return NULL;
 }
 
@@ -103,32 +87,22 @@ static char *slot_sfo_path(const appinfo *info, int slot) {
 
 static char *save_dir_path_enc(const appinfo *info) {
     if (is_sovr(info->title_id)) return NULL;
-    size_t len = sizeof(char) * 40;
-    char *path = malloc(len);
 
-    if (path == NULL) return NULL;
+    char probe[64];
+    int installed = 0;
 
-    if (save_dev_idx > 0) {
-        if (!path_exists(save_root)) { free(path); return NULL; }
-        snprintf(path, len, "%s/%s", save_root, info->real_id);
-        return path;
+    for (int i = 0; i < device_num && !installed; ++i) {
+        snprintf(probe, sizeof(probe), "%s:app/%s", devices[i], info->real_id);
+        installed = path_exists(probe);
     }
 
-    snprintf(path, len, "gro0:app/%s", info->real_id);
-    if (path_exists(path)) {
-        snprintf(path, len, "grw0:savedata/%s", info->real_id);
-        return path;
-    }
+    if (!installed || !path_exists(save_root)) return NULL;
 
-    snprintf(path, len, "ux0:app/%s", info->real_id);
-    if (path_exists(path)) {
-        snprintf(path, len, "ux0:user/00/savedata/%s", info->real_id);
-        return path;
-    }
+    char *path = malloc(64);
+    if (!path) return NULL;
 
-    free(path);
-
-    return NULL;
+    snprintf(path, 64, "%s/%s", save_root, info->real_id);
+    return path;
 }
 
 static int compare_appinfo(const void *a, const void *b) {
@@ -891,7 +865,7 @@ static ScreenState on_menuopen_event() {
         set_save_device(save_dev_idx - 1);
         ret = SWITCH_SAVE_DEVICE;
 
-    } else if (select_menu == SAVE_DEVICE && (btn & SCE_CTRL_RIGHT) && save_dev_idx < device_num) {
+    } else if (select_menu == SAVE_DEVICE && (btn & SCE_CTRL_RIGHT) && save_dev_idx + 1 < device_num) {
         set_save_device(save_dev_idx + 1);
         ret = SWITCH_SAVE_DEVICE;
 
@@ -1651,7 +1625,7 @@ static ScreenState switch_save_device(applist *gamelist) {
 
     free_list(gamelist);
     get_applist(gamelist);
-    if (save_dev_idx > 0) prune_no_saves(gamelist);
+    prune_no_saves(gamelist);
     sort_applist(gamelist);
 
     /* sort_applist() returns early for <2 items, so set these explicitly */
@@ -1673,7 +1647,7 @@ static int mainloop() {
 
     ret = get_applist(&gamelist);
     if (ret < 0) return -1;
-    if (save_dev_idx > 0) prune_no_saves(&gamelist);
+    prune_no_saves(&gamelist);
 
     ret = get_savelist(&savelist);
     if (ret < 0) return -1;
@@ -1849,6 +1823,7 @@ int main() {
     if (!path_exists(savemgr_fpath))
         create_dir(savemgr_fpath, 0777);
 
+    set_save_device(0);
     load_config();
 
     sceAppMgrUmount("app0:");
