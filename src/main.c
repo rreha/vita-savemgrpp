@@ -60,6 +60,22 @@ static char *save_dir_path(const appinfo *info) {
     return NULL;
 }
 
+static void prune_no_saves(applist *list) {
+    appinfo *t = list->items;
+
+    while (t) {
+        appinfo *next = t->next;
+        char *sd = save_dir_path(t);
+
+        if (sd)
+            free(sd);
+        else
+            update_list(list, 1, t->title_id);
+
+        t = next;
+    }
+}
+
 static char *slot_dir_path(const appinfo *info, int slot) {
     size_t len = sizeof(char) * 60;
     char *path = malloc(len);
@@ -1635,6 +1651,7 @@ static ScreenState switch_save_device(applist *gamelist) {
 
     free_list(gamelist);
     get_applist(gamelist);
+    if (save_dev_idx > 0) prune_no_saves(gamelist);
     sort_applist(gamelist);
 
     /* sort_applist() returns early for <2 items, so set these explicitly */
@@ -1656,6 +1673,7 @@ static int mainloop() {
 
     ret = get_applist(&gamelist);
     if (ret < 0) return -1;
+    if (save_dev_idx > 0) prune_no_saves(&gamelist);
 
     ret = get_savelist(&savelist);
     if (ret < 0) return -1;
