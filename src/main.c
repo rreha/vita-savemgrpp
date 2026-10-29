@@ -1267,6 +1267,9 @@ static int delete_all_slots(applist *savelist) {
 
     unlock_psbutton();
 
+    if (!path_exists(savemgr_fpath)) create_dir(savemgr_fpath, 0777);
+    save_config();
+
     return (res > 0 ? NO_ERROR:ERROR_DELETE_DIR);
 }
 
@@ -1337,7 +1340,7 @@ static void draw_screen(ScreenState state, applist *list, int slot) {
         draw_sort_menu();
     }
 
-    if (state >= PRINT_APPINFO && state <= REGION_SET_FAIL)
+    if (state >= PRINT_APPINFO && state <= REGION_SET_FAIL && list->choose)
         draw_appinfo(state, list->choose);
 
     switch (state) {
@@ -1612,6 +1615,8 @@ static ScreenState switch_device(applist *savelist) {
     incr_progress(&prog, 2, "Loading Backup List...");
 
     old_savelist_tab = 0; // to trigger list update
+    cached_info_ptr = NULL;
+    force_cache_refresh = 1;
     refreshUI = 1;
 
     return MENU_OPEN;
@@ -1822,6 +1827,7 @@ int main() {
 
     set_save_device(0);
     load_config();
+    if (!path_exists(savemgr_fpath)) create_dir(savemgr_fpath, 0777);
 
     sceAppMgrUmount("app0:");
     sceAppMgrUmount("savedata0:");
