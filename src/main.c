@@ -1220,32 +1220,29 @@ static int backup_all(const applist *gamelist, applist *savelist, int decrypt) {
     init_progress(gamelist->count, "Preparing bulk backup...");
 
     while (tmp) {
-        int save_slot = 0;
-        char *slotdir = slot_dir_path(tmp, save_slot);
+        appinfo *next = tmp->next;
+        int save_slot;
 
-        if (slotdir == NULL)
-            return ERROR_MEMORY_ALLOC;
+        for (save_slot = 0; save_slot < SLOT_BUTTON; ++save_slot) {
+            char *slotdir = slot_dir_path(tmp, save_slot);
+            if (!slotdir) return ERROR_MEMORY_ALLOC;
 
-        while (path_exists(slotdir) && save_slot < 10) {
+            int used = path_exists(slotdir);
             free(slotdir);
-
-            slotdir = slot_dir_path(tmp, ++save_slot);
-            if (slotdir == NULL)
-                return ERROR_MEMORY_ALLOC;
+            if (!used) break;
         }
 
-        free(slotdir);
         incr_progress(&curr, gamelist->count, tmp->title);
 
-        if (save_slot == 10)
-            continue; // no free slot, skip :|
+        if (save_slot < SLOT_BUTTON) { /* otherwise: no free slot, skip */
+            tmp->is_decrypted = decrypt;
+            res = copy_savedata_to_slot(tmp, save_slot, savelist);
 
-        tmp->is_decrypted = decrypt;
-        res = copy_savedata_to_slot(tmp, save_slot, savelist);
-        if (res != NO_ERROR && res != ERROR_NO_SAVE_DIR)
-            break;
+            if (res == ERROR_NO_SAVE_DIR) res = NO_ERROR;
+            else if (res != NO_ERROR && res != ERROR_DECRYPT_DIR) break;
+        }
 
-        tmp = tmp->next;
+        tmp = next;
     }
 
     if (savelist_tab)
