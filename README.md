@@ -5,7 +5,7 @@
 Vita Save Manager++ is a fast, highly optimized, and customizable save data manager for the PS Vita. This project is a refactored fork of **Vita Save Manager Plus**.
 <br><br>
 **NOTE: VitaShell modules are required for this application to run. So you need to have VitaShell installed.**<br>
-If VitaShell is not installed in your PS Vita, then copy `kernel.skprx` and `user.suprx` from VitaShell vpk to `ux0:data/vitaSaveManager/`.
+If VitaShell is not installed in your PS Vita, then copy `kernel.skprx` and `user.suprx` from VitaShell VPK to `ux0:data/vitaSaveManager/`.
 
 ## Changelog
 See [CHANGELOG.md](CHANGELOG.md).
@@ -16,7 +16,7 @@ See [CHANGELOG.md](CHANGELOG.md).
 - Bulk delete of all your backups
 - Restore encrypted and decrypted saves
 - Change savefile region
-- Select your prefered device to use as the backup device (`ux0:`, `ur0:`, `uma0:`, `imc0:` or `xmc0:`)
+- Select your prefered device to use as the save/backup device (`ux0:`, `ur0:`, `uma0:`, `imc0:` or `xmc0:`)
 - Toggle FTP and transfer saves
 - Customize UI (choose between Dark/Light Mode, and pick from different accent colors)
 

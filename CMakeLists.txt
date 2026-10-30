@@ -18,7 +18,7 @@ include("${VITASDK}/share/vita.cmake" REQUIRED)
 
 set(TITLE_ID "SAVEMGRPP")
 set(APP_NAME "Save Manager++")
-set(VERSION "05.00")
+set(VERSION "05.30")
 
 add_definitions(-DSQLITE_OS_OTHER=1 -DSQLITE_TEMP_STORE=3 -DSQLITE_THREADSAFE=0)
 

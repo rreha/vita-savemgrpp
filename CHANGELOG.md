@@ -1,3 +1,9 @@
+## 5.3.0
+- Add save device support
+- Add few more homebrew save paths
+- Hide games that don't have a save file
+- Fix bugs
+
 ## 5.2.0
 - Add support for homebrew apps & Adrenaline
 - Disable auto suspend on crucial I/O operations and FTP
