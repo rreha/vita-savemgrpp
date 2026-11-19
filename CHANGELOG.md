@@ -1,3 +1,6 @@
+## 5.3.1
+- Add config for save override (homebrew paths)
+
 ## 5.3.0
 - Add save device support
 - Add few more homebrew save paths
